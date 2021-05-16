@@ -12,16 +12,18 @@ import (
 
 var _ Session = (*memorySession)(nil)
 
+// memorySession is an in-memory session.
 type memorySession struct {
-	sid string
+	sid string // The session ID
 
-	lock           sync.RWMutex
-	data           map[interface{}]interface{}
-	lastAccessedAt time.Time
+	lock           sync.RWMutex                // The mutex to guard accesses to the data and lastAccessedAt
+	data           map[interface{}]interface{} // The map of the session data
+	lastAccessedAt time.Time                   // The last time of the session being accessed
 
 	index int // The index in the heap
 }
 
+// newMemorySession returns a new memory session with given session ID.
 func newMemorySession(sid string) *memorySession {
 	return &memorySession{
 		sid:  sid,
@@ -75,15 +77,18 @@ func (s *memorySession) SetLastAccessedAt(t time.Time) {
 
 var _ Store = (*memoryStore)(nil)
 
+// memoryStore is an in-memory implementation of the session store.
 type memoryStore struct {
-	nowFunc  func() time.Time
-	lifetime time.Duration
+	nowFunc  func() time.Time // The function to return the current time
+	lifetime time.Duration    // The duration to have no access to a session before being recycled
 
-	lock  sync.RWMutex
-	heap  []*memorySession
-	index map[string]*memorySession
+	lock  sync.RWMutex              // The mutex to guard accesses to the heap and index
+	heap  []*memorySession          // The heap to be managed by operations of heap.Interface
+	index map[string]*memorySession // The index to be managed by operations of heap.Interface
 }
 
+// newMemoryStore returns a new memory session store based on given
+// configuration.
 func newMemoryStore(cfg MemoryConfig) *memoryStore {
 	return &memoryStore{
 		nowFunc:  cfg.nowFunc,
@@ -214,12 +219,15 @@ func (s *memoryStore) GC() error {
 	return nil
 }
 
+// MemoryConfig contains options for the memory session store.
 type MemoryConfig struct {
-	nowFunc func() time.Time
+	nowFunc func() time.Time // For tests only
 
+	// Lifetime is the duration to have no access to a session before being recycled
 	Lifetime time.Duration
 }
 
+// MemoryIniter returns the Initer for the memory session store.
 func MemoryIniter() Initer {
 	return func(args ...interface{}) (Store, error) {
 		var cfg *MemoryConfig
