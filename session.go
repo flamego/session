@@ -12,34 +12,64 @@ import (
 	"github.com/flamego/flamego"
 )
 
+// Session is a session for the current request.
 type Session interface {
+	// ID returns the session ID.
 	ID() string
+	// Get returns the value of given key in the session. It returns nil if no such
+	// key exists.
 	Get(key interface{}) interface{}
+	// Set sets the value of given key in the session.
 	Set(key, val interface{})
+	// Delete deletes a key from the session.
 	Delete(key interface{})
+	// Flush wipes out all existing data in the session.
 	Flush()
+	// Save persists current session to its store.
 	Save() error
 }
 
+// CookieOptions contains options for setting HTTP cookies.
 type CookieOptions struct {
-	Name     string
-	Path     string
-	Domain   string
-	MaxAge   int
-	Secure   bool
+	// Name is the name of the cookie.
+	Name string
+	// Path is the Path attribute of the cookie. Default is "/".
+	Path string
+	// Domain is the Domain attribute of the cookie. Default is not set.
+	Domain string
+	// MaxAge is the MaxAge attribute of the cookie. Default is not set.
+	MaxAge int
+	// Secure specifies whether to set Secure for the cookie.
+	Secure bool
+	// HTTPOnly specifies whether to set HTTPOnly for the cookie.
 	HTTPOnly bool
+	// SameSite is the SameSite attribute of the cookie. Default is
+	// http.SameSiteLaxMode.
 	SameSite http.SameSite
 }
 
+// Options contains options for the session.Sessioner middleware.
 type Options struct {
-	Initer     Initer
-	Config     interface{}
-	Cookie     CookieOptions
-	IDLength   int
+	// Initer is the initialization function of the session store. Default is
+	// session.MemoryIniter.
+	Initer Initer
+	// Config is the configuration object to be passed to the Initer for the session
+	// store.
+	Config interface{}
+	// Cookie is a set of options for setting HTTP cookies.
+	Cookie CookieOptions
+	// IDLength specifies the length of session IDs.
+	IDLength int
+	// GCInterval is the time interval for GC operations.
 	GCInterval time.Duration
-	ErrorFunc  func(err error)
+	// ErrorFunc is the function used to print errors when something went wrong on
+	// the background.
+	ErrorFunc func(err error)
 }
 
+// Sessioner returns a middleware handler that injects session.Session and
+// session.Store into the request context, which are used for manipulating
+// session data.
 func Sessioner(opts ...Options) flamego.Handler {
 	var opt Options
 	if len(opts) > 0 {
