@@ -14,6 +14,24 @@ import (
 	"github.com/flamego/flamego"
 )
 
+// Store is a session store with capabilities of checking, reading, destroying
+// and GC sessions.
+type Store interface {
+	// Exist returns true of the session with given ID exists.
+	Exist(sid string) bool
+	// Read returns the session with given ID. If a session with the ID does not
+	// exist, a new session with the same ID is created and returned.
+	Read(sid string) (Session, error)
+	// Destroy deletes session with given ID from the session store completely.
+	Destroy(sid string) error
+	// GC performs a GC operation on the session store.
+	GC() error
+}
+
+// Initer takes arbitrary number of arguments needed for initialization and
+// returns an initialized session store.
+type Initer func(args ...interface{}) (Store, error)
+
 // manager is wrapper for wiring HTTP request and session stores.
 type manager struct {
 	store Store // The session store that is being managed.
