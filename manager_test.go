@@ -20,6 +20,7 @@ func TestIsValidSessionID(t *testing.T) {
 
 	assert.False(t, isValidSessionID("123", 16))
 	assert.False(t, isValidSessionID("3qKCBYmuAqG1RQix", 16))
+	assert.False(t, isValidSessionID("../session/ad2c7", 16))
 }
 
 func TestManager_startGC(t *testing.T) {
