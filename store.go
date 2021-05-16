@@ -5,6 +5,7 @@
 package session
 
 type Store interface {
+	Exist(sid string) bool
 	Read(sid string) (Session, error)
 	Destroy(sid string) error
 	GC() error

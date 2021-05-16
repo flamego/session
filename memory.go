@@ -141,6 +141,14 @@ func (s *memoryStore) Pop() interface{} {
 	return sess
 }
 
+func (s *memoryStore) Exist(sid string) bool {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	_, ok := s.index[sid]
+	return ok
+}
+
 func (s *memoryStore) Read(sid string) (Session, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
