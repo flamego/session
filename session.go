@@ -87,9 +87,9 @@ func Sessioner(opts ...Options) flamego.Handler {
 	mgr.startGC(opt.GCInterval, opt.ErrorFunc)
 
 	return flamego.ContextInvoker(func(c flamego.Context) {
-		sess, created, err := mgr.start(c, opt.Cookie.Name, opt.IDLength)
+		sess, created, err := mgr.load(c, opt.Cookie.Name, opt.IDLength)
 		if err != nil {
-			panic("session: start: " + err.Error())
+			panic("session: load: " + err.Error())
 		}
 
 		if created {

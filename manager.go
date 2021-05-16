@@ -14,17 +14,22 @@ import (
 	"github.com/flamego/flamego"
 )
 
+// manager is wrapper for wiring HTTP request and session stores.
 type manager struct {
-	store Store
+	store Store // The session store that is being managed.
 }
 
+// newManager returns a new manager with given session store.
 func newManager(store Store) *manager {
 	return &manager{
 		store: store,
 	}
 }
 
-func (m *manager) startGC(interval time.Duration, errFunc func(error)) <-chan struct{} {
+// startGC starts a background goroutine to trigger GC of the session store in
+// given time interval. Errors are printed using the `errFunc`. It returns a
+// send-only channel for stopping the background goroutine.
+func (m *manager) startGC(interval time.Duration, errFunc func(error)) chan<- struct{} {
 	stop := make(chan struct{})
 	go func() {
 		ticker := time.NewTicker(interval)
@@ -36,6 +41,7 @@ func (m *manager) startGC(interval time.Duration, errFunc func(error)) <-chan st
 
 			select {
 			case <-stop:
+				ticker.Stop()
 				return
 			case <-ticker.C:
 			}
@@ -46,7 +52,7 @@ func (m *manager) startGC(interval time.Duration, errFunc func(error)) <-chan st
 
 // randomChars returns a generated string in given number of random characters.
 func randomChars(n int) (string, error) {
-	const alphanum = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	const alphanum = "0123456789abcdefghijklmnopqrstuvwxyz"
 
 	randomInt := func(max *big.Int) (int, error) {
 		r, err := rand.Int(rand.Reader, max)
@@ -71,8 +77,8 @@ func randomChars(n int) (string, error) {
 	return string(buffer), nil
 }
 
-// todo: isValidSessionID tests whether a provided session ID is a valid session ID.
-func (m *manager) isValidSessionID(sid string, idLength int) bool {
+// isValidSessionID returns true if given session ID looks like a valid ID.
+func isValidSessionID(sid string, idLength int) bool {
 	if len(sid) != idLength {
 		return false
 	}
@@ -80,7 +86,7 @@ func (m *manager) isValidSessionID(sid string, idLength int) bool {
 	for i := range sid {
 		switch {
 		case '0' <= sid[i] && sid[i] <= '9':
-		case 'a' <= sid[i] && sid[i] <= 'f':
+		case 'a' <= sid[i] && sid[i] <= 'z':
 		default:
 			return false
 		}
@@ -88,9 +94,13 @@ func (m *manager) isValidSessionID(sid string, idLength int) bool {
 	return true
 }
 
-func (m *manager) start(c flamego.Context, cookieName string, idLength int) (_ Session, created bool, err error) {
+// load loads the session from the session store with session ID provided in the
+// named cookie. If a session with the ID does not exist, it creates a new
+// session with the same ID. A boolean value is returned to indicate whether a
+// new session is created.
+func (m *manager) load(c flamego.Context, cookieName string, idLength int) (_ Session, created bool, err error) {
 	sid := c.Cookie(cookieName)
-	if m.isValidSessionID(sid, idLength) && m.store.Exist(sid) {
+	if isValidSessionID(sid, idLength) && m.store.Exist(sid) {
 		sess, err := m.store.Read(sid)
 		if err != nil {
 			return nil, false, errors.Wrap(err, "read")
