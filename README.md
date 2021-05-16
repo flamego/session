@@ -15,7 +15,25 @@ The minimum requirement of Go is **1.16**.
 
 ## Getting started
 
-TBD
+```go
+package main
+
+import (
+	"github.com/flamego/flamego"
+	"github.com/flamego/session"
+)
+
+func main() {
+	f := flamego.Classic()
+	f.Use(session.Sessioner())
+	f.Get("/", func(s session.Session) {
+		s.Set("user_id", 123)
+		userID, ok := s.Get("user_id").(int)
+		// ...
+	})
+	f.Run()
+}
+```
 
 ## License
 
