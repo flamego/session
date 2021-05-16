@@ -107,7 +107,7 @@ func Sessioner(opts ...Options) flamego.Handler {
 			c.Request().AddCookie(cookie)
 		}
 
-		c.Map(sess)
+		c.Map(store).Map(sess)
 		c.Next()
 
 		err = sess.Save()
