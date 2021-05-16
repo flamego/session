@@ -21,6 +21,8 @@ type session struct {
 }
 
 type Options struct {
+	Initer Initer
+	Config interface{}
 }
 
 func Sessioner(opts ...Options) flamego.Handler {

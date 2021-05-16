@@ -24,9 +24,8 @@ type memorySession struct {
 
 func newMemorySession(sid string) *memorySession {
 	return &memorySession{
-		sid:            sid,
-		data:           make(map[interface{}]interface{}),
-		lastAccessedAt: time.Now(),
+		sid:  sid,
+		data: make(map[interface{}]interface{}),
 	}
 }
 
@@ -77,11 +76,20 @@ func (s *memorySession) SetLastAccessedAt(t time.Time) {
 var _ Store = (*memoryStore)(nil)
 
 type memoryStore struct {
+	nowFunc  func() time.Time
 	lifetime time.Duration
 
 	lock  sync.RWMutex
 	heap  []*memorySession
 	index map[string]*memorySession
+}
+
+func newMemoryStore(cfg MemoryConfig) *memoryStore {
+	return &memoryStore{
+		nowFunc:  cfg.nowFunc,
+		lifetime: cfg.Lifetime,
+		index:    make(map[string]*memorySession),
+	}
 }
 
 // Len implements `heap.Interface.Len`. It is not concurrent-safe and is the
@@ -141,8 +149,8 @@ func (s *memoryStore) Read(sid string) (Session, error) {
 	if ok {
 		// Only return the session if it is not expired, because the GC may have not
 		// caught up.
-		if sess.LastAccessedAt().Add(s.lifetime).After(time.Now()) {
-			sess.SetLastAccessedAt(time.Now())
+		if sess.LastAccessedAt().Add(s.lifetime).After(s.nowFunc()) {
+			sess.SetLastAccessedAt(s.nowFunc())
 			heap.Fix(s, sess.index)
 			return sess, nil
 		}
@@ -151,6 +159,7 @@ func (s *memoryStore) Read(sid string) (Session, error) {
 	}
 
 	sess = newMemorySession(sid)
+	sess.SetLastAccessedAt(s.nowFunc())
 	heap.Push(s, sess)
 	return sess, nil
 }
@@ -183,7 +192,7 @@ func (s *memoryStore) GC() error {
 			sess := s.heap[0]
 
 			// If the least accessed session is not expired, there is no need to continue
-			if !sess.LastAccessedAt().Add(s.lifetime).After(time.Now()) {
+			if sess.LastAccessedAt().Add(s.lifetime).After(s.nowFunc()) {
 				return true
 			}
 
@@ -198,6 +207,8 @@ func (s *memoryStore) GC() error {
 }
 
 type MemoryConfig struct {
+	nowFunc func() time.Time
+
 	Lifetime time.Duration
 }
 
@@ -215,13 +226,13 @@ func MemoryIniter() Initer {
 			cfg = &MemoryConfig{}
 		}
 
+		if cfg.nowFunc == nil {
+			cfg.nowFunc = time.Now
+		}
 		if cfg.Lifetime.Seconds() < 1 {
 			cfg.Lifetime = 3600 * time.Second
 		}
 
-		return &memoryStore{
-			lifetime: cfg.Lifetime,
-			index:    make(map[string]*memorySession),
-		}, nil
+		return newMemoryStore(*cfg), nil
 	}
 }
