@@ -58,12 +58,12 @@ type Options struct {
 	Config interface{}
 	// Cookie is a set of options for setting HTTP cookies.
 	Cookie CookieOptions
-	// IDLength specifies the length of session IDs.
+	// IDLength specifies the length of session IDs. Default is 16.
 	IDLength int
-	// GCInterval is the time interval for GC operations.
+	// GCInterval is the time interval for GC operations. Default is 5 minutes.
 	GCInterval time.Duration
 	// ErrorFunc is the function used to print errors when something went wrong on
-	// the background.
+	// the background. Default is to drop errors silently.
 	ErrorFunc func(err error)
 }
 
@@ -102,6 +102,10 @@ func Sessioner(opts ...Options) flamego.Handler {
 
 		if opts.GCInterval.Seconds() < 1 {
 			opts.GCInterval = 5 * time.Minute
+		}
+
+		if opts.ErrorFunc == nil {
+			opts.ErrorFunc = func(error) {}
 		}
 		return opts
 	}
