@@ -6,6 +6,7 @@ package session
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -40,8 +41,8 @@ func TestMemoryStore(t *testing.T) {
 		_, ok = s.Get("random").(string)
 		assert.False(t, ok)
 	})
-	f.Get("/destroy", func(session Session, store Store) error {
-		return store.Destroy(session.ID())
+	f.Get("/destroy", func(c flamego.Context, session Session, store Store) error {
+		return store.Destroy(c.Request().Context(), session.ID())
 	})
 
 	resp := httptest.NewRecorder()
@@ -71,6 +72,7 @@ func TestMemoryStore(t *testing.T) {
 }
 
 func TestMemoryStore_GC(t *testing.T) {
+	ctx := context.Background()
 	now := time.Now()
 	store := newMemoryStore(
 		MemoryConfig{
@@ -79,19 +81,19 @@ func TestMemoryStore_GC(t *testing.T) {
 		},
 	)
 
-	sess1, err := store.Read("1")
+	sess1, err := store.Read(ctx, "1")
 	assert.Nil(t, err)
 
 	now = now.Add(-time.Second)
-	sess2, err := store.Read("2")
+	sess2, err := store.Read(ctx, "2")
 	assert.Nil(t, err)
 
 	now = now.Add(-2 * time.Second)
-	_, err = store.Read("3")
+	_, err = store.Read(ctx, "3")
 	assert.Nil(t, err)
 
 	now = now.Add(2 * time.Second)
-	err = store.GC() // sess3 should be recycled
+	err = store.GC(ctx) // sess3 should be recycled
 	assert.Nil(t, err)
 
 	wantHeap := []*memorySession{sess2.(*memorySession), sess1.(*memorySession)}

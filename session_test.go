@@ -19,8 +19,8 @@ import (
 func TestSessioner(t *testing.T) {
 	f := flamego.NewWithLogger(&bytes.Buffer{})
 	f.Use(Sessioner())
-	f.Get("/", func(session Session, store Store) string {
-		_ = store.GC()
+	f.Get("/", func(c flamego.Context, session Session, store Store) string {
+		_ = store.GC(c.Request().Context())
 		return session.ID()
 	})
 

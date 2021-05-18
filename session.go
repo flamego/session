@@ -5,6 +5,7 @@
 package session
 
 import (
+	"context"
 	"net/http"
 	"reflect"
 	"time"
@@ -25,8 +26,8 @@ type Session interface {
 	Delete(key interface{})
 	// Flush wipes out all existing data in the session.
 	Flush()
-	// Save persists current session to its store.
-	Save() error
+	// Encode encodes session data to binary.
+	Encode() ([]byte, error)
 }
 
 // CookieOptions contains options for setting HTTP cookies.
@@ -111,14 +112,15 @@ func Sessioner(opts ...Options) flamego.Handler {
 	}
 
 	opt = parseOptions(opt)
+	ctx := context.Background()
 
-	store, err := opt.Initer(opt.Config)
+	store, err := opt.Initer(ctx, opt.Config)
 	if err != nil {
 		panic("session: " + err.Error())
 	}
 
 	mgr := newManager(store)
-	mgr.startGC(opt.GCInterval, opt.ErrorFunc)
+	mgr.startGC(ctx, opt.GCInterval, opt.ErrorFunc)
 
 	return flamego.ContextInvoker(func(c flamego.Context) {
 		sess, created, err := mgr.load(c, opt.Cookie.Name, opt.IDLength)
@@ -144,7 +146,7 @@ func Sessioner(opts ...Options) flamego.Handler {
 		c.Map(store).Map(sess)
 		c.Next()
 
-		err = sess.Save()
+		err = store.Save(c.Request().Context(), sess)
 		if err != nil {
 			panic("session: save: " + err.Error())
 		}

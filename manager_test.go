@@ -5,6 +5,7 @@
 package session
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -25,8 +26,10 @@ func TestIsValidSessionID(t *testing.T) {
 
 func TestManager_startGC(t *testing.T) {
 	m := newManager(newMemoryStore(MemoryConfig{}))
-	stop := m.startGC(time.Minute, func(error) {
-		panic("unreachable")
-	})
+	stop := m.startGC(
+		context.Background(),
+		time.Minute,
+		func(error) { panic("unreachable") },
+	)
 	stop <- struct{}{}
 }
