@@ -17,7 +17,7 @@ import (
 
 var _ session.Store = (*postgresStore)(nil)
 
-// postgres}Store is an in-memory implementation of the session store.
+// postgresStore is a Postgres implementation of the session store.
 type postgresStore struct {
 	nowFunc  func() time.Time // The function to return the current time
 	lifetime time.Duration    // The duration to have no access to a session before being recycled
