@@ -55,6 +55,11 @@ func (s *postgresStore) Read(ctx context.Context, sid string) (session.Session, 
 	q := fmt.Sprintf(`SELECT data, expired_at FROM %s WHERE key = $1`, s.table)
 	err := s.db.QueryRowContext(ctx, q, sid).Scan(&binary, &expiredAt)
 	if err == nil {
+		// Discard existing data if it's expired
+		if !s.nowFunc().Before(expiredAt.Add(s.lifetime)) {
+			return session.NewBaseSession(sid, s.encoder), nil
+		}
+
 		data, err := s.decoder(binary)
 		if err != nil {
 			return nil, errors.Wrap(err, "decode")
@@ -67,17 +72,8 @@ func (s *postgresStore) Read(ctx context.Context, sid string) (session.Session, 
 		return nil, errors.Wrap(err, "select")
 	}
 
-	binary, err = s.encoder(make(session.Data))
-	if err != nil {
-		return nil, errors.Wrap(err, "encode")
-	}
-
-	q = fmt.Sprintf(`INSERT INTO %s (key, data, expired_at) VALUES ($1, $2, $3)`, s.table)
-	_, err = s.db.ExecContext(ctx, q, sid, binary, s.nowFunc().Add(s.lifetime).UTC())
-	if err != nil {
-		return nil, errors.Wrap(err, "insert")
-	}
-	return session.NewBaseSession(sid, s.encoder), nil
+	sess := session.NewBaseSession(sid, s.encoder)
+	return sess, s.Save(ctx, sess)
 }
 
 func (s *postgresStore) Destroy(ctx context.Context, sid string) error {
@@ -92,10 +88,17 @@ func (s *postgresStore) Save(ctx context.Context, sess session.Session) error {
 		return errors.Wrap(err, "encode")
 	}
 
-	q := fmt.Sprintf(`UPDATE %s SET data = $1, expired_at = $2 WHERE key = $3`, s.table)
-	_, err = s.db.ExecContext(ctx, q, binary, s.nowFunc().Add(s.lifetime).UTC(), sess.ID())
+	q := fmt.Sprintf(`
+INSERT INTO %s (key, data, expired_at)
+VALUES ($1, $2, $3)
+ON CONFLICT (key)
+DO UPDATE SET
+	data       = excluded.data,
+	expired_at = excluded.expired_at
+`, s.table)
+	_, err = s.db.ExecContext(ctx, q, sess.ID(), binary, s.nowFunc().Add(s.lifetime).UTC())
 	if err != nil {
-		return errors.Wrap(err, "update")
+		return errors.Wrap(err, "upsert")
 	}
 	return nil
 }

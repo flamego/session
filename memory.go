@@ -127,15 +127,13 @@ func (s *memoryStore) Read(_ context.Context, sid string) (Session, error) {
 
 	sess, ok := s.index[sid]
 	if ok {
-		// Only return the session if it is not expired, because the GC may have not
-		// caught up.
-		if s.nowFunc().Before(sess.LastAccessedAt().Add(s.lifetime)) {
-			sess.SetLastAccessedAt(s.nowFunc())
-			heap.Fix(s, sess.index)
-			return sess, nil
+		// Discard existing data if it's expired
+		if !s.nowFunc().Before(sess.LastAccessedAt().Add(s.lifetime)) {
+			sess.SetData(make(Data))
 		}
-
-		heap.Remove(s, sess.index)
+		sess.SetLastAccessedAt(s.nowFunc())
+		heap.Fix(s, sess.index)
+		return sess, nil
 	}
 
 	sess = newMemorySession(sid)
