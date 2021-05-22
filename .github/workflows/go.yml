@@ -50,3 +50,43 @@ jobs:
         with:
           file: ./coverage
           flags: unittests
+
+  postgres:
+    name: Postgres
+    strategy:
+      matrix:
+        go-version: [ 1.16.x ]
+        platform: [ ubuntu-latest ]
+    runs-on: ${{ matrix.platform }}
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Run tests with coverage
+        run: go test -v -race -coverprofile=coverage -covermode=atomic ./postgres
+        env:
+          PGPORT: 5432
+          PGHOST: localhost
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGSSLMODE: disable
+      - name: Upload coverage report to Codecov
+        uses: codecov/codecov-action@v1.5.0
+        with:
+          file: ./coverage
+          flags: unittests

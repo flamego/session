@@ -6,6 +6,7 @@ package session
 
 import (
 	"container/heap"
+	"context"
 	"sync"
 	"time"
 )
@@ -14,11 +15,10 @@ var _ Session = (*memorySession)(nil)
 
 // memorySession is an in-memory session.
 type memorySession struct {
-	sid string // The session ID
+	*BaseSession
 
-	lock           sync.RWMutex                // The mutex to guard accesses to the data and lastAccessedAt
-	data           map[interface{}]interface{} // The map of the session data
-	lastAccessedAt time.Time                   // The last time of the session being accessed
+	lock           sync.RWMutex // The mutex to guard accesses to the lastAccessedAt
+	lastAccessedAt time.Time    // The last time of the session being accessed
 
 	index int // The index in the heap
 }
@@ -26,41 +26,8 @@ type memorySession struct {
 // newMemorySession returns a new memory session with given session ID.
 func newMemorySession(sid string) *memorySession {
 	return &memorySession{
-		sid:  sid,
-		data: make(map[interface{}]interface{}),
+		BaseSession: NewBaseSession(sid, nil),
 	}
-}
-
-func (s *memorySession) ID() string {
-	return s.sid
-}
-
-func (s *memorySession) Get(key interface{}) interface{} {
-	s.lock.RLock()
-	defer s.lock.RUnlock()
-	return s.data[key]
-}
-
-func (s *memorySession) Set(key, val interface{}) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	s.data[key] = val
-}
-
-func (s *memorySession) Delete(key interface{}) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	delete(s.data, key)
-}
-
-func (s *memorySession) Flush() {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	s.data = make(map[interface{}]interface{})
-}
-
-func (s *memorySession) Save() error {
-	return nil
 }
 
 func (s *memorySession) LastAccessedAt() time.Time {
@@ -146,7 +113,7 @@ func (s *memoryStore) Pop() interface{} {
 	return sess
 }
 
-func (s *memoryStore) Exist(sid string) bool {
+func (s *memoryStore) Exist(_ context.Context, sid string) bool {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
@@ -154,7 +121,7 @@ func (s *memoryStore) Exist(sid string) bool {
 	return ok
 }
 
-func (s *memoryStore) Read(sid string) (Session, error) {
+func (s *memoryStore) Read(_ context.Context, sid string) (Session, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -162,7 +129,7 @@ func (s *memoryStore) Read(sid string) (Session, error) {
 	if ok {
 		// Only return the session if it is not expired, because the GC may have not
 		// caught up.
-		if sess.LastAccessedAt().Add(s.lifetime).After(s.nowFunc()) {
+		if s.nowFunc().Before(sess.LastAccessedAt().Add(s.lifetime)) {
 			sess.SetLastAccessedAt(s.nowFunc())
 			heap.Fix(s, sess.index)
 			return sess, nil
@@ -177,7 +144,7 @@ func (s *memoryStore) Read(sid string) (Session, error) {
 	return sess, nil
 }
 
-func (s *memoryStore) Destroy(sid string) error {
+func (s *memoryStore) Destroy(_ context.Context, sid string) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -190,10 +157,20 @@ func (s *memoryStore) Destroy(sid string) error {
 	return nil
 }
 
-func (s *memoryStore) GC() error {
+func (s *memoryStore) Save(context.Context, Session) error {
+	return nil
+}
+
+func (s *memoryStore) GC(ctx context.Context) error {
 	// Removing expired sessions from top of the heap until there is no more expired
 	// sessions found.
 	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+		}
+
 		done := func() bool {
 			s.lock.Lock()
 			defer s.lock.Unlock()
@@ -205,7 +182,7 @@ func (s *memoryStore) GC() error {
 			sess := s.heap[0]
 
 			// If the least accessed session is not expired, there is no need to continue
-			if sess.LastAccessedAt().Add(s.lifetime).After(s.nowFunc()) {
+			if s.nowFunc().Before(sess.LastAccessedAt().Add(s.lifetime)) {
 				return true
 			}
 
@@ -223,13 +200,14 @@ func (s *memoryStore) GC() error {
 type MemoryConfig struct {
 	nowFunc func() time.Time // For tests only
 
-	// Lifetime is the duration to have no access to a session before being recycled
+	// Lifetime is the duration to have no access to a session before being
+	// recycled. Default is 3600 seconds.
 	Lifetime time.Duration
 }
 
 // MemoryIniter returns the Initer for the memory session store.
 func MemoryIniter() Initer {
-	return func(args ...interface{}) (Store, error) {
+	return func(_ context.Context, args ...interface{}) (Store, error) {
 		var cfg *MemoryConfig
 		for i := range args {
 			switch v := args[i].(type) {

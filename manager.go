@@ -5,6 +5,7 @@
 package session
 
 import (
+	"context"
 	"crypto/rand"
 	"math/big"
 	"time"
@@ -18,19 +19,21 @@ import (
 // and GC sessions.
 type Store interface {
 	// Exist returns true of the session with given ID exists.
-	Exist(sid string) bool
+	Exist(ctx context.Context, sid string) bool
 	// Read returns the session with given ID. If a session with the ID does not
 	// exist, a new session with the same ID is created and returned.
-	Read(sid string) (Session, error)
+	Read(ctx context.Context, sid string) (Session, error)
 	// Destroy deletes session with given ID from the session store completely.
-	Destroy(sid string) error
+	Destroy(ctx context.Context, sid string) error
+	// Save persists session data to the session store.
+	Save(ctx context.Context, session Session) error
 	// GC performs a GC operation on the session store.
-	GC() error
+	GC(ctx context.Context) error
 }
 
 // Initer takes arbitrary number of arguments needed for initialization and
 // returns an initialized session store.
-type Initer func(args ...interface{}) (Store, error)
+type Initer func(ctx context.Context, args ...interface{}) (Store, error)
 
 // manager is wrapper for wiring HTTP request and session stores.
 type manager struct {
@@ -47,12 +50,12 @@ func newManager(store Store) *manager {
 // startGC starts a background goroutine to trigger GC of the session store in
 // given time interval. Errors are printed using the `errFunc`. It returns a
 // send-only channel for stopping the background goroutine.
-func (m *manager) startGC(interval time.Duration, errFunc func(error)) chan<- struct{} {
+func (m *manager) startGC(ctx context.Context, interval time.Duration, errFunc func(error)) chan<- struct{} {
 	stop := make(chan struct{})
 	go func() {
 		ticker := time.NewTicker(interval)
 		for {
-			err := m.store.GC()
+			err := m.store.GC(ctx)
 			if err != nil {
 				errFunc(err)
 			}
@@ -118,8 +121,8 @@ func isValidSessionID(sid string, idLength int) bool {
 // new session is created.
 func (m *manager) load(c flamego.Context, cookieName string, idLength int) (_ Session, created bool, err error) {
 	sid := c.Cookie(cookieName)
-	if isValidSessionID(sid, idLength) && m.store.Exist(sid) {
-		sess, err := m.store.Read(sid)
+	if isValidSessionID(sid, idLength) && m.store.Exist(c.Request().Context(), sid) {
+		sess, err := m.store.Read(c.Request().Context(), sid)
 		if err != nil {
 			return nil, false, errors.Wrap(err, "read")
 		}
@@ -131,7 +134,7 @@ func (m *manager) load(c flamego.Context, cookieName string, idLength int) (_ Se
 		return nil, false, errors.Wrap(err, "new ID")
 	}
 
-	sess, err := m.store.Read(sid)
+	sess, err := m.store.Read(c.Request().Context(), sid)
 	if err != nil {
 		return nil, false, errors.Wrap(err, "read")
 	}
