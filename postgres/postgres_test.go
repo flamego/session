@@ -29,10 +29,6 @@ import (
 
 var flagParseOnce sync.Once
 
-// todo: NewTestDB 初始化测试数据库连接并对表结构进行自动迁移。
-// 数据库连接字符串从以下环境变量获取：`PGUSER`、`PGPASSWORD`、`PGHOST`、`PGPORT`、`PGSSLMODE`。
-// 每次调用都会创建随机名称的数据库实例，并返回对应实例的数据库连接。
-// 返回的 cleanup 函数可以用于重置指定数据表的数据但不销毁测试数据库，常用于子测试中。
 func newTestDB(t *testing.T, ctx context.Context) (testDB *sql.DB, cleanup func() error) {
 	dsn := os.ExpandEnv("postgres://$PGUSER:$PGPASSWORD@$PGHOST:$PGPORT/?sslmode=$PGSSLMODE")
 	db, err := openDB(dsn)
