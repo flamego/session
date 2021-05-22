@@ -84,9 +84,19 @@ func TestMemoryStore_GC(t *testing.T) {
 	sess1, err := store.Read(ctx, "1")
 	assert.Nil(t, err)
 
-	now = now.Add(-time.Second)
+	now = now.Add(-2 * time.Second)
 	sess2, err := store.Read(ctx, "2")
 	assert.Nil(t, err)
+
+	sess2.Set("name", "flamego")
+	err = store.Save(ctx, sess2)
+	assert.Nil(t, err)
+
+	// Read on an expired session should wipe data but preserve the record
+	now = now.Add(2 * time.Second)
+	tmp, err := store.Read(ctx, "2")
+	assert.Nil(t, err)
+	assert.Nil(t, tmp.Get("name"))
 
 	now = now.Add(-2 * time.Second)
 	_, err = store.Read(ctx, "3")

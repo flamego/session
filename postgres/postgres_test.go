@@ -9,11 +9,11 @@ import (
 	"context"
 	"database/sql"
 	"flag"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -40,17 +40,13 @@ func newTestDB(t *testing.T, ctx context.Context) (testDB *sql.DB, cleanup func(
 		t.Fatalf("Failed to open database: %v", err)
 	}
 
-	quoteIdentifier := func(s string) string {
-		return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
-	}
-
 	dbname := "flamego-test-session"
-	_, err = db.ExecContext(ctx, `DROP DATABASE IF EXISTS `+quoteIdentifier(dbname))
+	_, err = db.ExecContext(ctx, fmt.Sprintf(`DROP DATABASE IF EXISTS %q`, dbname))
 	if err != nil {
 		t.Fatalf("Failed to drop test database: %v", err)
 	}
 
-	_, err = db.ExecContext(ctx, `CREATE DATABASE `+quoteIdentifier(dbname))
+	_, err = db.ExecContext(ctx, fmt.Sprintf(`CREATE DATABASE %q`, dbname))
 	if err != nil {
 		t.Fatalf("Failed to create test database: %v", err)
 	}
@@ -98,7 +94,7 @@ CREATE TABLE sessions (
 			t.Fatalf("Failed to close test connection: %v", err)
 		}
 
-		_, err = db.ExecContext(ctx, `DROP DATABASE `+quoteIdentifier(dbname))
+		_, err = db.ExecContext(ctx, fmt.Sprintf(`DROP DATABASE %q`, dbname))
 		if err != nil {
 			t.Fatalf("Failed to drop test database: %v", err)
 		}
@@ -108,7 +104,7 @@ CREATE TABLE sessions (
 			return nil
 		}
 
-		_, err = testDB.ExecContext(ctx, `TRUNCATE `+quoteIdentifier("sessions")+` RESTART IDENTITY CASCADE`)
+		_, err = testDB.ExecContext(ctx, `TRUNCATE sessions RESTART IDENTITY CASCADE`)
 		if err != nil {
 			return err
 		}
@@ -204,9 +200,19 @@ func TestPostgresStore_GC(t *testing.T) {
 	_, err = store.Read(ctx, "1")
 	assert.Nil(t, err)
 
-	now = now.Add(-time.Second)
-	_, err = store.Read(ctx, "2")
+	now = now.Add(-2 * time.Second)
+	sess2, err := store.Read(ctx, "2")
 	assert.Nil(t, err)
+
+	sess2.Set("name", "flamego")
+	err = store.Save(ctx, sess2)
+	assert.Nil(t, err)
+
+	// Read on an expired session should wipe data but preserve the record
+	now = now.Add(2 * time.Second)
+	tmp, err := store.Read(ctx, "2")
+	assert.Nil(t, err)
+	assert.Nil(t, tmp.Get("name"))
 
 	now = now.Add(-2 * time.Second)
 	_, err = store.Read(ctx, "3")
@@ -217,6 +223,6 @@ func TestPostgresStore_GC(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.True(t, store.Exist(ctx, "1"))
-	assert.True(t, store.Exist(ctx, "2"))
+	assert.False(t, store.Exist(ctx, "2"))
 	assert.False(t, store.Exist(ctx, "3"))
 }
