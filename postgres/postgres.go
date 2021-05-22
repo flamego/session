@@ -44,7 +44,7 @@ func newPostgresStore(cfg Config) *postgresStore {
 
 func (s *postgresStore) Exist(ctx context.Context, sid string) bool {
 	var exists bool
-	q := fmt.Sprintf(`SELECT EXISTS (SELECT 1 FROM %s WHERE key = $1)`, s.table)
+	q := fmt.Sprintf(`SELECT EXISTS (SELECT 1 FROM %q WHERE key = $1)`, s.table)
 	err := s.db.QueryRowContext(ctx, q, sid).Scan(&exists)
 	return err == nil && exists
 }
@@ -52,7 +52,7 @@ func (s *postgresStore) Exist(ctx context.Context, sid string) bool {
 func (s *postgresStore) Read(ctx context.Context, sid string) (session.Session, error) {
 	var binary []byte
 	var expiredAt time.Time
-	q := fmt.Sprintf(`SELECT data, expired_at FROM %s WHERE key = $1`, s.table)
+	q := fmt.Sprintf(`SELECT data, expired_at FROM %q WHERE key = $1`, s.table)
 	err := s.db.QueryRowContext(ctx, q, sid).Scan(&binary, &expiredAt)
 	if err == nil {
 		// Discard existing data if it's expired
@@ -77,7 +77,7 @@ func (s *postgresStore) Read(ctx context.Context, sid string) (session.Session, 
 }
 
 func (s *postgresStore) Destroy(ctx context.Context, sid string) error {
-	q := fmt.Sprintf(`DELETE FROM %s WHERE key = $1`, s.table)
+	q := fmt.Sprintf(`DELETE FROM %q WHERE key = $1`, s.table)
 	_, err := s.db.ExecContext(ctx, q, sid)
 	return err
 }
@@ -89,7 +89,7 @@ func (s *postgresStore) Save(ctx context.Context, sess session.Session) error {
 	}
 
 	q := fmt.Sprintf(`
-INSERT INTO %s (key, data, expired_at)
+INSERT INTO %q (key, data, expired_at)
 VALUES ($1, $2, $3)
 ON CONFLICT (key)
 DO UPDATE SET
@@ -104,7 +104,7 @@ DO UPDATE SET
 }
 
 func (s *postgresStore) GC(ctx context.Context) error {
-	q := fmt.Sprintf(`DELETE FROM %s WHERE expired_at <= $1`, s.table)
+	q := fmt.Sprintf(`DELETE FROM %q WHERE expired_at <= $1`, s.table)
 	_, err := s.db.ExecContext(ctx, q, s.nowFunc().UTC())
 	return err
 }
