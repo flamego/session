@@ -81,7 +81,11 @@ func (s *BaseSession) SetData(data Data) {
 // GobEncoder is a session data encoder using Gob.
 func GobEncoder(data Data) ([]byte, error) {
 	var buf bytes.Buffer
-	return buf.Bytes(), gob.NewEncoder(&buf).Encode(data)
+	err := gob.NewEncoder(&buf).Encode(data)
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 // GobDecoder is a session data decoder using Gob.

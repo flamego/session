@@ -207,7 +207,7 @@ type MemoryConfig struct {
 
 // MemoryIniter returns the Initer for the memory session store.
 func MemoryIniter() Initer {
-	return func(args ...interface{}) (Store, error) {
+	return func(_ context.Context, args ...interface{}) (Store, error) {
 		var cfg *MemoryConfig
 		for i := range args {
 			switch v := args[i].(type) {

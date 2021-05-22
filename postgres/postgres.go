@@ -6,10 +6,12 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/stdlib"
 	"github.com/pkg/errors"
 
 	"github.com/flamego/session"
@@ -21,7 +23,7 @@ var _ session.Store = (*postgresStore)(nil)
 type postgresStore struct {
 	nowFunc  func() time.Time // The function to return the current time
 	lifetime time.Duration    // The duration to have no access to a session before being recycled
-	conn     *pgx.Conn        // The database connection
+	db       *sql.DB          // The database connection
 	table    string           // The database table for storing session data
 	encoder  session.Encoder  // The encoder to encode the session data before saving
 	decoder  session.Decoder  // The decoder to decode binary to session data after reading
@@ -29,11 +31,11 @@ type postgresStore struct {
 
 // newPostgresStore returns a new Postgres session store based on given
 // configuration.
-func newPostgresStore(cfg Config, conn *pgx.Conn) *postgresStore {
+func newPostgresStore(cfg Config) *postgresStore {
 	return &postgresStore{
 		nowFunc:  cfg.nowFunc,
 		lifetime: cfg.Lifetime,
-		conn:     conn,
+		db:       cfg.db,
 		table:    cfg.Table,
 		encoder:  cfg.Encoder,
 		decoder:  cfg.Decoder,
@@ -42,16 +44,16 @@ func newPostgresStore(cfg Config, conn *pgx.Conn) *postgresStore {
 
 func (s *postgresStore) Exist(ctx context.Context, sid string) bool {
 	var exists bool
-	sql := fmt.Sprintf(`SELECT EXISTS (SELECT 1 FROM %s WHERE key = $1)`, s.table)
-	err := s.conn.QueryRow(ctx, sql, sid).Scan(&exists)
+	q := fmt.Sprintf(`SELECT EXISTS (SELECT 1 FROM %s WHERE key = $1)`, s.table)
+	err := s.db.QueryRowContext(ctx, q, sid).Scan(&exists)
 	return err == nil && exists
 }
 
 func (s *postgresStore) Read(ctx context.Context, sid string) (session.Session, error) {
 	var binary []byte
 	var expiredAt time.Time
-	sql := fmt.Sprintf(`SELECT data, expired_at FROM %s WHERE key = $1`, s.table)
-	err := s.conn.QueryRow(ctx, sql, sid).Scan(&binary, &expiredAt)
+	q := fmt.Sprintf(`SELECT data, expired_at FROM %s WHERE key = $1`, s.table)
+	err := s.db.QueryRowContext(ctx, q, sid).Scan(&binary, &expiredAt)
 	if err == nil {
 		data, err := s.decoder(binary)
 		if err != nil {
@@ -61,7 +63,7 @@ func (s *postgresStore) Read(ctx context.Context, sid string) (session.Session, 
 		sess := session.NewBaseSession(sid, s.encoder)
 		sess.SetData(data)
 		return sess, nil
-	} else if err != pgx.ErrNoRows {
+	} else if err != sql.ErrNoRows {
 		return nil, errors.Wrap(err, "select")
 	}
 
@@ -70,8 +72,8 @@ func (s *postgresStore) Read(ctx context.Context, sid string) (session.Session, 
 		return nil, errors.Wrap(err, "encode")
 	}
 
-	sql = fmt.Sprintf(`INSERT INTO %s (key, data, expired_at) VALUES ($1, $2, $3)`, s.table)
-	_, err = s.conn.Exec(ctx, sql, sid, binary, s.nowFunc().Add(s.lifetime).UTC())
+	q = fmt.Sprintf(`INSERT INTO %s (key, data, expired_at) VALUES ($1, $2, $3)`, s.table)
+	_, err = s.db.ExecContext(ctx, q, sid, binary, s.nowFunc().Add(s.lifetime).UTC())
 	if err != nil {
 		return nil, errors.Wrap(err, "insert")
 	}
@@ -79,8 +81,8 @@ func (s *postgresStore) Read(ctx context.Context, sid string) (session.Session, 
 }
 
 func (s *postgresStore) Destroy(ctx context.Context, sid string) error {
-	sql := fmt.Sprintf(`DELETE FROM %s WHERE key = $1`, s.table)
-	_, err := s.conn.Exec(ctx, sql, sid)
+	q := fmt.Sprintf(`DELETE FROM %s WHERE key = $1`, s.table)
+	_, err := s.db.ExecContext(ctx, q, sid)
 	return err
 }
 
@@ -90,8 +92,8 @@ func (s *postgresStore) Save(ctx context.Context, sess session.Session) error {
 		return errors.Wrap(err, "encode")
 	}
 
-	sql := fmt.Sprintf(`UPDATE %s SET data = $1, expired_at = $2 WHERE key = $3`, s.table)
-	_, err = s.conn.Exec(ctx, sql, binary, s.nowFunc().Add(s.lifetime).UTC(), sess.ID())
+	q := fmt.Sprintf(`UPDATE %s SET data = $1, expired_at = $2 WHERE key = $3`, s.table)
+	_, err = s.db.ExecContext(ctx, q, binary, s.nowFunc().Add(s.lifetime).UTC(), sess.ID())
 	if err != nil {
 		return errors.Wrap(err, "update")
 	}
@@ -99,20 +101,22 @@ func (s *postgresStore) Save(ctx context.Context, sess session.Session) error {
 }
 
 func (s *postgresStore) GC(ctx context.Context) error {
-	sql := fmt.Sprintf(`DELETE FROM %s WHERE expired_at <= $1`, s.table)
-	_, err := s.conn.Exec(ctx, sql, s.nowFunc().UTC())
+	q := fmt.Sprintf(`DELETE FROM %s WHERE expired_at <= $1`, s.table)
+	_, err := s.db.ExecContext(ctx, q, s.nowFunc().UTC())
 	return err
 }
 
 // Config contains options for the memory session store.
 type Config struct {
-	nowFunc func() time.Time // For tests only
+	// For tests only
+	nowFunc func() time.Time
+	db      *sql.DB
 
 	// Lifetime is the duration to have no access to a session before being
 	// recycled. Default is 3600 seconds.
 	Lifetime time.Duration
-	// ConnString is the connection string to the Postgres.
-	ConnString string
+	// DSN is the database source name to the Postgres.
+	DSN string
 	// Table is the table name for storing session data. Default is "sessions".
 	Table string
 	// Encoder is the encoder to encode session data. Default is session.GobEncoder.
@@ -121,33 +125,37 @@ type Config struct {
 	Decoder session.Decoder
 }
 
+func openDB(dsn string) (*sql.DB, error) {
+	config, err := pgx.ParseConfig(dsn)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse config")
+	}
+	return stdlib.OpenDB(*config), nil
+}
+
 // Initer returns the session.Initer for the Postgres session store.
 func Initer() session.Initer {
-	return func(args ...interface{}) (session.Store, error) {
-		var ctx context.Context
+	return func(ctx context.Context, args ...interface{}) (session.Store, error) {
 		var cfg *Config
 		for i := range args {
 			switch v := args[i].(type) {
-			case context.Context:
-				ctx = v
 			case Config:
 				cfg = &v
 			}
 		}
 
-		if ctx == nil {
-			ctx = context.Background()
-		}
-
 		if cfg == nil {
 			return nil, fmt.Errorf("config object with the type '%T' not found", Config{})
-		} else if cfg.ConnString == "" {
-			return nil, errors.New("empty ConnString")
+		} else if cfg.DSN == "" && cfg.db == nil {
+			return nil, errors.New("empty DSN")
 		}
 
-		conn, err := pgx.Connect(ctx, cfg.ConnString)
-		if err != nil {
-			return nil, errors.Wrap(err, "connect")
+		if cfg.db == nil {
+			db, err := openDB(cfg.DSN)
+			if err != nil {
+				return nil, errors.Wrap(err, "open database")
+			}
+			cfg.db = db
 		}
 
 		if cfg.nowFunc == nil {
@@ -166,6 +174,6 @@ func Initer() session.Initer {
 			cfg.Decoder = session.GobDecoder
 		}
 
-		return newPostgresStore(*cfg, conn), nil
+		return newPostgresStore(*cfg), nil
 	}
 }
