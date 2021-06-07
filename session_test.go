@@ -36,7 +36,7 @@ func TestSessioner(t *testing.T) {
 
 	// Make a request again using the same session ID
 	resp = httptest.NewRecorder()
-	req, err = http.NewRequest("GET", "/", nil)
+	req, err = http.NewRequest(http.MethodGet, "/", nil)
 	assert.Nil(t, err)
 
 	req.Header.Set("Cookie", cookie)
@@ -67,7 +67,7 @@ func TestSessioner_Header(t *testing.T) {
 	})
 
 	resp := httptest.NewRecorder()
-	req, err := http.NewRequest("GET", "/", nil)
+	req, err := http.NewRequest(http.MethodGet, "/", nil)
 	assert.Nil(t, err)
 
 	f.ServeHTTP(resp, req)
@@ -77,7 +77,7 @@ func TestSessioner_Header(t *testing.T) {
 
 	// Make a request again using the same session ID
 	resp = httptest.NewRecorder()
-	req, err = http.NewRequest("GET", "/", nil)
+	req, err = http.NewRequest(http.MethodGet, "/", nil)
 	assert.Nil(t, err)
 
 	req.Header.Set("Session-Id", sid)
