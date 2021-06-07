@@ -8,11 +8,10 @@ import (
 	"context"
 	"crypto/rand"
 	"math/big"
+	"net/http"
 	"time"
 
 	"github.com/pkg/errors"
-
-	"github.com/flamego/flamego"
 )
 
 // Store is a session store with capabilities of checking, reading, destroying
@@ -119,10 +118,9 @@ func isValidSessionID(sid string, idLength int) bool {
 // named cookie. If a session with the ID does not exist, it creates a new
 // session with the same ID. A boolean value is returned to indicate whether a
 // new session is created.
-func (m *manager) load(c flamego.Context, cookieName string, idLength int) (_ Session, created bool, err error) {
-	sid := c.Cookie(cookieName)
-	if isValidSessionID(sid, idLength) && m.store.Exist(c.Request().Context(), sid) {
-		sess, err := m.store.Read(c.Request().Context(), sid)
+func (m *manager) load(r *http.Request, sid string, idLength int) (_ Session, created bool, err error) {
+	if isValidSessionID(sid, idLength) && m.store.Exist(r.Context(), sid) {
+		sess, err := m.store.Read(r.Context(), sid)
 		if err != nil {
 			return nil, false, errors.Wrap(err, "read")
 		}
@@ -134,7 +132,7 @@ func (m *manager) load(c flamego.Context, cookieName string, idLength int) (_ Se
 		return nil, false, errors.Wrap(err, "new ID")
 	}
 
-	sess, err := m.store.Read(c.Request().Context(), sid)
+	sess, err := m.store.Read(r.Context(), sid)
 	if err != nil {
 		return nil, false, errors.Wrap(err, "read")
 	}

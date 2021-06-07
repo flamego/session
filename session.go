@@ -66,6 +66,13 @@ type Options struct {
 	// ErrorFunc is the function used to print errors when something went wrong on
 	// the background. Default is to drop errors silently.
 	ErrorFunc func(err error)
+	// ReadIDFunc is the function to read session ID from the request. Default is
+	// reading from cookie.
+	ReadIDFunc func(r *http.Request) string
+	// WriteIDFunc is the function to write session ID to the response. Default is
+	// writing to cookie. The `created` argument indicates whether a new session was
+	// created in the session store.
+	WriteIDFunc func(w http.ResponseWriter, r *http.Request, sid string, created bool)
 }
 
 // Sessioner returns a middleware handler that injects session.Session and
@@ -108,6 +115,36 @@ func Sessioner(opts ...Options) flamego.Handler {
 		if opts.ErrorFunc == nil {
 			opts.ErrorFunc = func(error) {}
 		}
+
+		if opts.ReadIDFunc == nil {
+			opts.ReadIDFunc = func(r *http.Request) string {
+				cookie, err := r.Cookie(opts.Cookie.Name)
+				if err != nil {
+					return ""
+				}
+				return cookie.Value
+			}
+		}
+		if opts.WriteIDFunc == nil {
+			opts.WriteIDFunc = func(w http.ResponseWriter, r *http.Request, sid string, created bool) {
+				if !created {
+					return
+				}
+
+				cookie := &http.Cookie{
+					Name:     opts.Cookie.Name,
+					Value:    sid,
+					Path:     opts.Cookie.Path,
+					Domain:   opts.Cookie.Domain,
+					MaxAge:   opts.Cookie.MaxAge,
+					Secure:   opts.Cookie.Secure,
+					HttpOnly: opts.Cookie.HTTPOnly,
+					SameSite: opts.Cookie.SameSite,
+				}
+				http.SetCookie(w, cookie)
+				r.AddCookie(cookie)
+			}
+		}
 		return opts
 	}
 
@@ -123,25 +160,13 @@ func Sessioner(opts ...Options) flamego.Handler {
 	mgr.startGC(ctx, opt.GCInterval, opt.ErrorFunc)
 
 	return flamego.ContextInvoker(func(c flamego.Context) {
-		sess, created, err := mgr.load(c, opt.Cookie.Name, opt.IDLength)
+		sid := opt.ReadIDFunc(c.Request().Request)
+		sess, created, err := mgr.load(c.Request().Request, sid, opt.IDLength)
 		if err != nil {
 			panic("session: load: " + err.Error())
 		}
 
-		if created {
-			cookie := &http.Cookie{
-				Name:     opt.Cookie.Name,
-				Value:    sess.ID(),
-				Path:     opt.Cookie.Path,
-				Domain:   opt.Cookie.Domain,
-				MaxAge:   opt.Cookie.MaxAge,
-				Secure:   opt.Cookie.Secure,
-				HttpOnly: opt.Cookie.HTTPOnly,
-				SameSite: opt.Cookie.SameSite,
-			}
-			http.SetCookie(c.ResponseWriter(), cookie)
-			c.Request().AddCookie(cookie)
-		}
+		opt.WriteIDFunc(c.ResponseWriter(), c.Request().Request, sess.ID(), created)
 
 		c.Map(store).Map(sess)
 		c.Next()
