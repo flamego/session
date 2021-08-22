@@ -168,7 +168,7 @@ func Sessioner(opts ...Options) flamego.Handler {
 
 		opt.WriteIDFunc(c.ResponseWriter(), c.Request().Request, sess.ID(), created)
 
-		c.Map(store).Map(sess)
+		c.Map(store, sess)
 		c.Next()
 
 		err = store.Save(c.Request().Context(), sess)
