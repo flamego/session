@@ -109,7 +109,7 @@ func (s *postgresStore) GC(ctx context.Context) error {
 	return err
 }
 
-// Config contains options for the memory session store.
+// Config contains options for the Postgres session store.
 type Config struct {
 	// For tests only
 	nowFunc func() time.Time
