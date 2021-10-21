@@ -60,7 +60,7 @@ jobs:
     runs-on: ${{ matrix.platform }}
     services:
       postgres:
-        image: postgres:13
+        image: postgres:9.6
         env:
           POSTGRES_PASSWORD: postgres
         options: >-

@@ -54,6 +54,12 @@ func (s *BaseSession) Set(key, val interface{}) {
 	s.data[key] = val
 }
 
+func (s *BaseSession) SetFlash(val interface{}) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	s.data[flashKey] = val
+}
+
 func (s *BaseSession) Delete(key interface{}) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -94,3 +100,9 @@ func GobDecoder(binary []byte) (Data, error) {
 	var data Data
 	return data, gob.NewDecoder(buf).Decode(&data)
 }
+
+// Flash is anything that gets retrieved and deleted as soon as the next request
+// happens.
+type Flash interface{}
+
+const flashKey = "flamego::session::flash"

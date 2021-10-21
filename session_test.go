@@ -85,3 +85,57 @@ func TestSessioner_Header(t *testing.T) {
 
 	assert.Equal(t, sid, resp.Body.String())
 }
+
+func TestSession_Flash(t *testing.T) {
+	f := flamego.NewWithLogger(&bytes.Buffer{})
+	f.Use(Sessioner())
+	f.Get("/", func(c flamego.Context, f Flash) string {
+		s, ok := f.(string)
+		if !ok {
+			return "no flash"
+		}
+		return s
+	})
+	f.Post("/set-flash", func(s Session) {
+		s.SetFlash("This is a flash message")
+	})
+
+	// No flash in the initial request
+	resp := httptest.NewRecorder()
+	req, err := http.NewRequest(http.MethodGet, "/", nil)
+	assert.Nil(t, err)
+
+	f.ServeHTTP(resp, req)
+
+	assert.Equal(t, "no flash", resp.Body.String())
+
+	cookie := resp.Header().Get("Set-Cookie")
+
+	// Send a request to set flash
+	resp = httptest.NewRecorder()
+	req, err = http.NewRequest(http.MethodPost, "/set-flash", nil)
+	assert.Nil(t, err)
+
+	req.Header.Set("Cookie", cookie)
+	f.ServeHTTP(resp, req)
+
+	// Flash should be returned
+	resp = httptest.NewRecorder()
+	req, err = http.NewRequest(http.MethodGet, "/", nil)
+	assert.Nil(t, err)
+
+	req.Header.Set("Cookie", cookie)
+	f.ServeHTTP(resp, req)
+
+	assert.Equal(t, "This is a flash message", resp.Body.String())
+
+	// Flash has gone now if we try again
+	resp = httptest.NewRecorder()
+	req, err = http.NewRequest(http.MethodGet, "/", nil)
+	assert.Nil(t, err)
+
+	req.Header.Set("Cookie", cookie)
+	f.ServeHTTP(resp, req)
+
+	assert.Equal(t, "no flash", resp.Body.String())
+}

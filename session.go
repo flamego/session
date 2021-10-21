@@ -22,6 +22,8 @@ type Session interface {
 	Get(key interface{}) interface{}
 	// Set sets the value of given key in the session.
 	Set(key, val interface{})
+	// SetFlash sets the flash to be the given value in the session.
+	SetFlash(val interface{})
 	// Delete deletes a key from the session.
 	Delete(key interface{})
 	// Flush wipes out all existing data in the session.
@@ -32,7 +34,7 @@ type Session interface {
 
 // CookieOptions contains options for setting HTTP cookies.
 type CookieOptions struct {
-	// Name is the name of the cookie.
+	// Name is the name of the cookie. Default is "flamego_session".
 	Name string
 	// Path is the Path attribute of the cookie. Default is "/".
 	Path string
@@ -168,7 +170,11 @@ func Sessioner(opts ...Options) flamego.Handler {
 
 		opt.WriteIDFunc(c.ResponseWriter(), c.Request().Request, sess.ID(), created)
 
+		flash := sess.Get(flashKey)
+		sess.Delete(flashKey)
+
 		c.Map(store, sess)
+		c.MapTo(flash, (*Flash)(nil))
 		c.Next()
 
 		err = store.Save(c.Request().Context(), sess)
