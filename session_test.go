@@ -102,7 +102,7 @@ func TestSession_Flash(t *testing.T) {
 
 	// No flash in the initial request
 	resp := httptest.NewRecorder()
-	req, err := http.NewRequest("GET", "/", nil)
+	req, err := http.NewRequest(http.MethodGet, "/", nil)
 	assert.Nil(t, err)
 
 	f.ServeHTTP(resp, req)
@@ -121,7 +121,7 @@ func TestSession_Flash(t *testing.T) {
 
 	// Flash should be returned
 	resp = httptest.NewRecorder()
-	req, err = http.NewRequest("GET", "/", nil)
+	req, err = http.NewRequest(http.MethodGet, "/", nil)
 	assert.Nil(t, err)
 
 	req.Header.Set("Cookie", cookie)
@@ -131,7 +131,7 @@ func TestSession_Flash(t *testing.T) {
 
 	// Flash has gone now if we try again
 	resp = httptest.NewRecorder()
-	req, err = http.NewRequest("GET", "/", nil)
+	req, err = http.NewRequest(http.MethodGet, "/", nil)
 	assert.Nil(t, err)
 
 	req.Header.Set("Cookie", cookie)
