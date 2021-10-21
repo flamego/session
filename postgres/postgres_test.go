@@ -193,7 +193,9 @@ func TestPostgresStore_GC(t *testing.T) {
 	)
 	assert.Nil(t, err)
 
-	_, err = store.Read(ctx, "1")
+	sess1, err := store.Read(ctx, "1")
+	assert.Nil(t, err)
+	err = store.Save(ctx, sess1)
 	assert.Nil(t, err)
 
 	now = now.Add(-2 * time.Second)
@@ -211,7 +213,9 @@ func TestPostgresStore_GC(t *testing.T) {
 	assert.Nil(t, tmp.Get("name"))
 
 	now = now.Add(-2 * time.Second)
-	_, err = store.Read(ctx, "3")
+	sess3, err := store.Read(ctx, "3")
+	assert.Nil(t, err)
+	err = store.Save(ctx, sess3)
 	assert.Nil(t, err)
 
 	now = now.Add(2 * time.Second)

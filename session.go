@@ -10,6 +10,8 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/flamego/flamego"
 )
 
@@ -77,6 +79,10 @@ type Options struct {
 	WriteIDFunc func(w http.ResponseWriter, r *http.Request, sid string, created bool)
 }
 
+const minimumSIDLength = 3
+
+var ErrMinimumSIDLength = errors.Errorf("the SID does not have the minimum required length %d", minimumSIDLength)
+
 // Sessioner returns a middleware handler that injects session.Session and
 // session.Store into the request context, which are used for manipulating
 // session data.
@@ -106,7 +112,8 @@ func Sessioner(opts ...Options) flamego.Handler {
 			opts.Cookie.Path = "/"
 		}
 
-		if opts.IDLength <= 0 {
+		// NOTE: The file store requires at least 3 characters for the filename.
+		if opts.IDLength < minimumSIDLength {
 			opts.IDLength = 16
 		}
 

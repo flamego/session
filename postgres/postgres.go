@@ -72,8 +72,7 @@ func (s *postgresStore) Read(ctx context.Context, sid string) (session.Session, 
 		return nil, errors.Wrap(err, "select")
 	}
 
-	sess := session.NewBaseSession(sid, s.encoder)
-	return sess, s.Save(ctx, sess)
+	return session.NewBaseSession(sid, s.encoder), nil
 }
 
 func (s *postgresStore) Destroy(ctx context.Context, sid string) error {
