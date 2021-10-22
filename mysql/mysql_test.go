@@ -194,8 +194,10 @@ func TestMySQLStore_GC(t *testing.T) {
 	err = store.Save(ctx, sess2)
 	assert.Nil(t, err)
 
-	// Read on an expired session should wipe data but preserve the record
-	now = now.Add(2 * time.Second)
+	// Read on an expired session should wipe data but preserve the record.
+	// NOTE: MySQL is behaving flaky on exact the seconds, so let's wait one more
+	//  second.
+	now = now.Add(3 * time.Second)
 	tmp, err := store.Read(ctx, "2")
 	assert.Nil(t, err)
 	assert.Nil(t, tmp.Get("name"))
@@ -206,7 +208,7 @@ func TestMySQLStore_GC(t *testing.T) {
 	err = store.Save(ctx, sess3)
 	assert.Nil(t, err)
 
-	now = now.Add(2 * time.Second)
+	now = now.Add(3 * time.Second)
 	err = store.GC(ctx) // sess3 should be recycled
 	assert.Nil(t, err)
 
