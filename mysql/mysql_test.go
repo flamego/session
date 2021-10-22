@@ -181,10 +181,12 @@ func TestMySQLStore_GC(t *testing.T) {
 	)
 	assert.Nil(t, err)
 
+	now = now.Add(3 * time.Second)
 	sess1, err := store.Read(ctx, "1")
 	assert.Nil(t, err)
 	err = store.Save(ctx, sess1)
 	assert.Nil(t, err)
+	now = now.Add(-3 * time.Second)
 
 	now = now.Add(-2 * time.Second)
 	sess2, err := store.Read(ctx, "2")
