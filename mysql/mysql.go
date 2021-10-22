@@ -59,7 +59,7 @@ func (s *mysqlStore) Read(ctx context.Context, sid string) (session.Session, err
 	var binary []byte
 	var expiredAt time.Time
 	q := fmt.Sprintf(
-		`SELECT data, expired_at FROM %s WHERE %s = ?"`,
+		`SELECT data, expired_at FROM %s WHERE %s = ?`,
 		quoteWithBackticks(s.table),
 		quoteWithBackticks("key"),
 	)
