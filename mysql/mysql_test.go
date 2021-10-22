@@ -2,76 +2,64 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package postgres
+package mysql
 
 import (
 	"bytes"
 	"context"
 	"database/sql"
-	"flag"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
-	"sync"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/log/testingadapter"
-	"github.com/jackc/pgx/v4/stdlib"
+	"github.com/go-sql-driver/mysql"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/flamego/flamego"
 	"github.com/flamego/session"
 )
 
-var flagParseOnce sync.Once
-
 func newTestDB(t *testing.T, ctx context.Context) (testDB *sql.DB, cleanup func() error) {
-	dsn := os.ExpandEnv("postgres://$PGUSER:$PGPASSWORD@$PGHOST:$PGPORT/?sslmode=$PGSSLMODE")
-	db, err := openDB(dsn)
+	dsn := os.ExpandEnv("$MYSQL_USER:$MYSQL_PASSWORD@tcp($MYSQL_HOST:$MYSQL_PORT)/?charset=utf8&parseTime=true")
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
 
 	dbname := "flamego-test-sessions"
-	_, err = db.ExecContext(ctx, fmt.Sprintf(`DROP DATABASE IF EXISTS %q`, dbname))
+	_, err = db.ExecContext(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s", quoteWithBackticks(dbname)))
 	if err != nil {
 		t.Fatalf("Failed to drop test database: %v", err)
 	}
 
-	_, err = db.ExecContext(ctx, fmt.Sprintf(`CREATE DATABASE %q`, dbname))
+	_, err = db.ExecContext(ctx, fmt.Sprintf("CREATE DATABASE %s", quoteWithBackticks(dbname)))
 	if err != nil {
 		t.Fatalf("Failed to create test database: %v", err)
 	}
 
-	cfg, err := url.Parse(dsn)
+	cfg, err := mysql.ParseDSN(dsn)
 	if err != nil {
 		t.Fatalf("Failed to parse DSN: %v", err)
 	}
-	cfg.Path = "/" + dbname
+	cfg.DBName = dbname
 
-	flagParseOnce.Do(flag.Parse)
-
-	connConfig, err := pgx.ParseConfig(cfg.String())
+	testDB, err = sql.Open("mysql", cfg.FormatDSN())
 	if err != nil {
-		t.Fatalf("Failed to parse test database config: %v", err)
-	}
-	if testing.Verbose() {
-		connConfig.Logger = testingadapter.NewLogger(t)
-		connConfig.LogLevel = pgx.LogLevelTrace
+		t.Fatalf("Failed to open test database: %v", err)
 	}
 
-	testDB = stdlib.OpenDB(*connConfig)
-
-	q := `
+	q := fmt.Sprintf(`
 CREATE TABLE sessions (
-    key        TEXT PRIMARY KEY,
-    data       BYTEA NOT NULL,
-    expired_at TIMESTAMP WITH TIME ZONE NOT NULL
-)`
+	%[1]s      VARCHAR(255) NOT NULL,
+	data       BLOB NOT NULL,
+	expired_at DATETIME NOT NULL,
+	PRIMARY KEY (%[1]s)
+) DEFAULT CHARSET=utf8`,
+		quoteWithBackticks("key"),
+	)
 	_, err = testDB.ExecContext(ctx, q)
 	if err != nil {
 		t.Fatalf("Failed to create sessions table: %v", err)
@@ -90,7 +78,7 @@ CREATE TABLE sessions (
 			t.Fatalf("Failed to close test connection: %v", err)
 		}
 
-		_, err = db.ExecContext(ctx, fmt.Sprintf(`DROP DATABASE %q`, dbname))
+		_, err = db.ExecContext(ctx, fmt.Sprintf(`DROP DATABASE %s`, quoteWithBackticks(dbname)))
 		if err != nil {
 			t.Fatalf("Failed to drop test database: %v", err)
 		}
@@ -100,7 +88,7 @@ CREATE TABLE sessions (
 			return nil
 		}
 
-		_, err = testDB.ExecContext(ctx, `TRUNCATE sessions RESTART IDENTITY CASCADE`)
+		_, err = testDB.ExecContext(ctx, `TRUNCATE TABLE sessions`)
 		if err != nil {
 			return err
 		}
@@ -108,7 +96,7 @@ CREATE TABLE sessions (
 	}
 }
 
-func TestPostgresStore(t *testing.T) {
+func TestMySQLStore(t *testing.T) {
 	ctx := context.Background()
 	db, cleanup := newTestDB(t, ctx)
 	t.Cleanup(func() {
@@ -176,7 +164,7 @@ func TestPostgresStore(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.Code)
 }
 
-func TestPostgresStore_GC(t *testing.T) {
+func TestMySQLStore_GC(t *testing.T) {
 	ctx := context.Background()
 	db, cleanup := newTestDB(t, ctx)
 	t.Cleanup(func() {
@@ -193,10 +181,12 @@ func TestPostgresStore_GC(t *testing.T) {
 	)
 	assert.Nil(t, err)
 
+	now = now.Add(3 * time.Second)
 	sess1, err := store.Read(ctx, "1")
 	assert.Nil(t, err)
 	err = store.Save(ctx, sess1)
 	assert.Nil(t, err)
+	now = now.Add(-3 * time.Second)
 
 	now = now.Add(-2 * time.Second)
 	sess2, err := store.Read(ctx, "2")
@@ -206,8 +196,10 @@ func TestPostgresStore_GC(t *testing.T) {
 	err = store.Save(ctx, sess2)
 	assert.Nil(t, err)
 
-	// Read on an expired session should wipe data but preserve the record
-	now = now.Add(2 * time.Second)
+	// Read on an expired session should wipe data but preserve the record.
+	// NOTE: MySQL is behaving flaky on exact the seconds, so let's wait one more
+	//  second.
+	now = now.Add(3 * time.Second)
 	tmp, err := store.Read(ctx, "2")
 	assert.Nil(t, err)
 	assert.Nil(t, tmp.Get("name"))
@@ -218,7 +210,7 @@ func TestPostgresStore_GC(t *testing.T) {
 	err = store.Save(ctx, sess3)
 	assert.Nil(t, err)
 
-	now = now.Add(2 * time.Second)
+	now = now.Add(3 * time.Second)
 	err = store.GC(ctx) // sess3 should be recycled
 	assert.Nil(t, err)
 

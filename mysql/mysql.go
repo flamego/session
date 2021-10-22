@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package postgres
+package mysql
 
 import (
 	"context"
@@ -10,17 +10,16 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/stdlib"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/pkg/errors"
 
 	"github.com/flamego/session"
 )
 
-var _ session.Store = (*postgresStore)(nil)
+var _ session.Store = (*mysqlStore)(nil)
 
-// postgresStore is a Postgres implementation of the session store.
-type postgresStore struct {
+// mysqlStore is a MySQL implementation of the session store.
+type mysqlStore struct {
 	nowFunc  func() time.Time // The function to return the current time
 	lifetime time.Duration    // The duration to have no access to a session before being recycled
 	db       *sql.DB          // The database connection
@@ -29,10 +28,9 @@ type postgresStore struct {
 	decoder  session.Decoder  // The decoder to decode binary to session data after reading
 }
 
-// newPostgresStore returns a new Postgres session store based on given
-// configuration.
-func newPostgresStore(cfg Config) *postgresStore {
-	return &postgresStore{
+// newMySQLStore returns a new MySQL session store based on given configuration.
+func newMySQLStore(cfg Config) *mysqlStore {
+	return &mysqlStore{
 		nowFunc:  cfg.nowFunc,
 		lifetime: cfg.Lifetime,
 		db:       cfg.db,
@@ -42,17 +40,29 @@ func newPostgresStore(cfg Config) *postgresStore {
 	}
 }
 
-func (s *postgresStore) Exist(ctx context.Context, sid string) bool {
+func quoteWithBackticks(s string) string {
+	return "`" + s + "`"
+}
+
+func (s *mysqlStore) Exist(ctx context.Context, sid string) bool {
 	var exists bool
-	q := fmt.Sprintf(`SELECT EXISTS (SELECT FROM %q WHERE key = $1)`, s.table)
+	q := fmt.Sprintf(
+		`SELECT EXISTS (SELECT 1 FROM %s WHERE %s = ?)`,
+		quoteWithBackticks(s.table),
+		quoteWithBackticks("key"),
+	)
 	err := s.db.QueryRowContext(ctx, q, sid).Scan(&exists)
 	return err == nil && exists
 }
 
-func (s *postgresStore) Read(ctx context.Context, sid string) (session.Session, error) {
+func (s *mysqlStore) Read(ctx context.Context, sid string) (session.Session, error) {
 	var binary []byte
 	var expiredAt time.Time
-	q := fmt.Sprintf(`SELECT data, expired_at FROM %q WHERE key = $1`, s.table)
+	q := fmt.Sprintf(
+		`SELECT data, expired_at FROM %s WHERE %s = ?`,
+		quoteWithBackticks(s.table),
+		quoteWithBackticks("key"),
+	)
 	err := s.db.QueryRowContext(ctx, q, sid).Scan(&binary, &expiredAt)
 	if err == nil {
 		// Discard existing data if it's expired
@@ -75,26 +85,32 @@ func (s *postgresStore) Read(ctx context.Context, sid string) (session.Session, 
 	return session.NewBaseSession(sid, s.encoder), nil
 }
 
-func (s *postgresStore) Destroy(ctx context.Context, sid string) error {
-	q := fmt.Sprintf(`DELETE FROM %q WHERE key = $1`, s.table)
+func (s *mysqlStore) Destroy(ctx context.Context, sid string) error {
+	q := fmt.Sprintf(
+		`DELETE FROM %s WHERE %s = ?`,
+		quoteWithBackticks(s.table),
+		quoteWithBackticks("key"),
+	)
 	_, err := s.db.ExecContext(ctx, q, sid)
 	return err
 }
 
-func (s *postgresStore) Save(ctx context.Context, sess session.Session) error {
+func (s *mysqlStore) Save(ctx context.Context, sess session.Session) error {
 	binary, err := sess.Encode()
 	if err != nil {
 		return errors.Wrap(err, "encode")
 	}
 
 	q := fmt.Sprintf(`
-INSERT INTO %q (key, data, expired_at)
-VALUES ($1, $2, $3)
-ON CONFLICT (key)
-DO UPDATE SET
-	data       = excluded.data,
-	expired_at = excluded.expired_at
-`, s.table)
+INSERT INTO %s (%s, data, expired_at)
+VALUES (?, ?, ?)
+ON DUPLICATE KEY UPDATE
+	data       = VALUES(data),
+	expired_at = VALUES(expired_at)
+`,
+		quoteWithBackticks(s.table),
+		quoteWithBackticks("key"),
+	)
 	_, err = s.db.ExecContext(ctx, q, sess.ID(), binary, s.nowFunc().Add(s.lifetime).UTC())
 	if err != nil {
 		return errors.Wrap(err, "upsert")
@@ -102,13 +118,13 @@ DO UPDATE SET
 	return nil
 }
 
-func (s *postgresStore) GC(ctx context.Context) error {
-	q := fmt.Sprintf(`DELETE FROM %q WHERE expired_at <= $1`, s.table)
+func (s *mysqlStore) GC(ctx context.Context) error {
+	q := fmt.Sprintf(`DELETE FROM %s WHERE expired_at <= ?`, quoteWithBackticks(s.table))
 	_, err := s.db.ExecContext(ctx, q, s.nowFunc().UTC())
 	return err
 }
 
-// Config contains options for the Postgres session store.
+// Config contains options for the MySQL session store.
 type Config struct {
 	// For tests only
 	nowFunc func() time.Time
@@ -117,7 +133,7 @@ type Config struct {
 	// Lifetime is the duration to have no access to a session before being
 	// recycled. Default is 3600 seconds.
 	Lifetime time.Duration
-	// DSN is the database source name to the Postgres.
+	// DSN is the database source name to the MySQL.
 	DSN string
 	// Table is the table name for storing session data. Default is "sessions".
 	Table string
@@ -127,15 +143,7 @@ type Config struct {
 	Decoder session.Decoder
 }
 
-func openDB(dsn string) (*sql.DB, error) {
-	config, err := pgx.ParseConfig(dsn)
-	if err != nil {
-		return nil, errors.Wrap(err, "parse config")
-	}
-	return stdlib.OpenDB(*config), nil
-}
-
-// Initer returns the session.Initer for the Postgres session store.
+// Initer returns the session.Initer for the MySQL session store.
 func Initer() session.Initer {
 	return func(ctx context.Context, args ...interface{}) (session.Store, error) {
 		var cfg *Config
@@ -153,7 +161,7 @@ func Initer() session.Initer {
 		}
 
 		if cfg.db == nil {
-			db, err := openDB(cfg.DSN)
+			db, err := sql.Open("mysql", cfg.DSN)
 			if err != nil {
 				return nil, errors.Wrap(err, "open database")
 			}
@@ -176,6 +184,6 @@ func Initer() session.Initer {
 			cfg.Decoder = session.GobDecoder
 		}
 
-		return newPostgresStore(*cfg), nil
+		return newMySQLStore(*cfg), nil
 	}
 }
