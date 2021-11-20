@@ -126,7 +126,7 @@ func TestMongoDBStore(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.Code)
 }
 
-func TestRedisStore_GC(t *testing.T) {
+func TestMongoDBStore_GC(t *testing.T) {
 	ctx := context.Background()
 	db, cleanup := newTestDB(t, ctx)
 	t.Cleanup(func() {
