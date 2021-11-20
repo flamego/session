@@ -44,10 +44,7 @@ func newMongoStore(cfg Config) *mongoStore {
 
 func (s mongoStore) Exist(ctx context.Context, sid string) bool {
 	err := s.db.Collection(s.collection).FindOne(ctx, bson.M{"key": sid}).Err()
-	if err == mongo.ErrNoDocuments {
-		return false
-	}
-	return true
+	return err != mongo.ErrNoDocuments
 }
 
 func (s mongoStore) Read(ctx context.Context, sid string) (session.Session, error) {
