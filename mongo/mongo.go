@@ -47,7 +47,7 @@ func (s *mongoStore) Exist(ctx context.Context, sid string) bool {
 	return err == nil
 }
 
-func (s mongoStore) Read(ctx context.Context, sid string) (session.Session, error) {
+func (s *mongoStore) Read(ctx context.Context, sid string) (session.Session, error) {
 	var result bson.M
 	err := s.db.Collection(s.collection).FindOne(ctx, bson.M{"key": sid}).Decode(&result)
 	if err == nil {
@@ -81,7 +81,7 @@ func (s mongoStore) Read(ctx context.Context, sid string) (session.Session, erro
 	return session.NewBaseSession(sid, s.encoder), nil
 }
 
-func (s mongoStore) Destroy(ctx context.Context, sid string) error {
+func (s *mongoStore) Destroy(ctx context.Context, sid string) error {
 	_, err := s.db.Collection(s.collection).DeleteOne(ctx, bson.M{"key": sid})
 	if err != nil {
 		return errors.Wrap(err, "delete")
@@ -89,7 +89,7 @@ func (s mongoStore) Destroy(ctx context.Context, sid string) error {
 	return nil
 }
 
-func (s mongoStore) Save(ctx context.Context, sess session.Session) error {
+func (s *mongoStore) Save(ctx context.Context, sess session.Session) error {
 	binary, err := sess.Encode()
 	if err != nil {
 		return errors.Wrap(err, "encode")
@@ -110,8 +110,8 @@ func (s mongoStore) Save(ctx context.Context, sess session.Session) error {
 	return nil
 }
 
-func (s mongoStore) GC(ctx context.Context) error {
-	_, err := s.db.Collection(s.collection).DeleteMany(ctx, bson.M{"expired_at": bson.M{"$lt": s.nowFunc().UTC()}})
+func (s *mongoStore) GC(ctx context.Context) error {
+	_, err := s.db.Collection(s.collection).DeleteMany(ctx, bson.M{"expired_at": bson.M{"$lte": s.nowFunc().UTC()}})
 	if err != nil {
 		return errors.Wrap(err, "delete")
 	}
@@ -136,9 +136,9 @@ type Config struct {
 	// Lifetime is the duration to have no access to a session before being
 	// recycled. Default is 3600 seconds.
 	Lifetime time.Duration
-	// Encoder is the encoder to encode session data. Default is bson.Encoder.
+	// Encoder is the encoder to encode session data. Default is session.GobEncoder.
 	Encoder session.Encoder
-	// Decoder is the decoder to decode session data. Default is bson.Decoder.
+	// Decoder is the decoder to decode session data. Default is session.GobDecoder.
 	Decoder session.Decoder
 }
 
@@ -155,7 +155,7 @@ func Initer() session.Initer {
 
 		if cfg == nil {
 			return nil, fmt.Errorf("config object with the type '%T' not found", Config{})
-		} else if cfg.DSN == "" && cfg.db == nil {
+		} else if cfg.Database == "" && cfg.db == nil {
 			return nil, errors.New("empty DSN")
 		}
 
@@ -164,7 +164,7 @@ func Initer() session.Initer {
 			if err != nil {
 				return nil, errors.Wrap(err, "open database")
 			}
-			cfg.db = client.Database(cfg.DSN)
+			cfg.db = client.Database(cfg.Database)
 		}
 
 		if cfg.nowFunc == nil {

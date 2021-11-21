@@ -20,7 +20,7 @@ var _ session.Store = (*redisStore)(nil)
 // redisStore is a Redis implementation of the session store.
 type redisStore struct {
 	client   *redis.Client   // The client connection
-	lifetime time.Duration   // The duration to have no access to a session before being recycled
+	lifetime time.Duration   // The duration to have access to a session before being recycled
 	encoder  session.Encoder // The encoder to encode the session data before saving
 	decoder  session.Decoder // The decoder to decode binary to session data after reading
 }

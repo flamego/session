@@ -22,7 +22,7 @@ var _ session.Store = (*postgresStore)(nil)
 // postgresStore is a Postgres implementation of the session store.
 type postgresStore struct {
 	nowFunc  func() time.Time // The function to return the current time
-	lifetime time.Duration    // The duration to have no access to a session before being recycled
+	lifetime time.Duration    // The duration to have access to a session before being recycled
 	db       *sql.DB          // The database connection
 	table    string           // The database table for storing session data
 	encoder  session.Encoder  // The encoder to encode the session data before saving
