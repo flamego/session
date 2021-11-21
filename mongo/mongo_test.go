@@ -58,7 +58,7 @@ func newTestDB(t *testing.T, ctx context.Context) (testDB *mongo.Database, clean
 	}
 }
 
-func TestMongoDBStore(t *testing.T) {
+func TestMongoStore(t *testing.T) {
 	ctx := context.Background()
 	db, cleanup := newTestDB(t, ctx)
 	t.Cleanup(func() {
@@ -126,7 +126,7 @@ func TestMongoDBStore(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.Code)
 }
 
-func TestMongoDBStore_GC(t *testing.T) {
+func TestMongoStore_GC(t *testing.T) {
 	ctx := context.Background()
 	db, cleanup := newTestDB(t, ctx)
 	t.Cleanup(func() {
