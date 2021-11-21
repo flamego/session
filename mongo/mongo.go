@@ -23,7 +23,7 @@ var _ session.Store = (*mongoStore)(nil)
 // mongoStore is a MongoDB implementation of the session store.
 type mongoStore struct {
 	nowFunc    func() time.Time // The function to return the current time
-	lifetime   time.Duration    // The duration to have no access to a session before being recycled
+	lifetime   time.Duration    // The duration to have access to a session before being recycled
 	db         *mongo.Database  // The database connection
 	collection string           // The database collection for storing session data
 	encoder    session.Encoder  // The encoder to encode the session data before saving
@@ -42,9 +42,9 @@ func newMongoStore(cfg Config) *mongoStore {
 	}
 }
 
-func (s mongoStore) Exist(ctx context.Context, sid string) bool {
+func (s *mongoStore) Exist(ctx context.Context, sid string) bool {
 	err := s.db.Collection(s.collection).FindOne(ctx, bson.M{"key": sid}).Err()
-	return err != mongo.ErrNoDocuments
+	return err == nil
 }
 
 func (s mongoStore) Read(ctx context.Context, sid string) (session.Session, error) {
@@ -53,12 +53,12 @@ func (s mongoStore) Read(ctx context.Context, sid string) (session.Session, erro
 	if err == nil {
 		binary, ok := result["data"].(primitive.Binary)
 		if !ok {
-			return nil, errors.New("assert `data` key")
+			return nil, errors.Errorf(`assert "data" key: want type primitive.Binary but got %T`, result["data"])
 		}
 
 		expiredAt, ok := result["expired_at"].(primitive.DateTime)
 		if !ok {
-			return nil, errors.New("assert `expired_at` key")
+			return nil, errors.Errorf(`assert "expired_at" key: want type primitive.DateTime but got %T`, result["expired_at"])
 		}
 
 		// Discard existing data if it's expired
@@ -75,11 +75,10 @@ func (s mongoStore) Read(ctx context.Context, sid string) (session.Session, erro
 		sess.SetData(data)
 		return sess, nil
 	} else if err != mongo.ErrNoDocuments {
-		return nil, errors.Wrap(err, "select")
+		return nil, errors.Wrap(err, "find")
 	}
 
 	return session.NewBaseSession(sid, s.encoder), nil
-
 }
 
 func (s mongoStore) Destroy(ctx context.Context, sid string) error {
@@ -114,7 +113,7 @@ func (s mongoStore) Save(ctx context.Context, sess session.Session) error {
 func (s mongoStore) GC(ctx context.Context) error {
 	_, err := s.db.Collection(s.collection).DeleteMany(ctx, bson.M{"expired_at": bson.M{"$lt": s.nowFunc().UTC()}})
 	if err != nil {
-		return errors.Wrap(err, "GC")
+		return errors.Wrap(err, "delete")
 	}
 	return nil
 }
@@ -128,10 +127,10 @@ type Config struct {
 	nowFunc func() time.Time
 	db      *mongo.Database
 
-	// Options is the settings to set up MongoDB client connection.
+	// Options is the settings to set up the MongoDB client connection.
 	Options *Options
-	// DSN is the database source name to the MongoDB.
-	DSN string
+	// Database is the database name of the MongoDB.
+	Database string
 	// Collection is the collection name for storing session data. Default is "sessions".
 	Collection string
 	// Lifetime is the duration to have no access to a session before being
