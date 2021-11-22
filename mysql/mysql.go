@@ -130,7 +130,7 @@ type Config struct {
 	nowFunc func() time.Time
 	db      *sql.DB
 
-	// Lifetime is the duration to have no access to a session before being
+	// Lifetime is the duration to have access to a session before being
 	// recycled. Default is 3600 seconds.
 	Lifetime time.Duration
 	// DSN is the database source name to the MySQL.
