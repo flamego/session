@@ -156,7 +156,7 @@ func Initer() session.Initer {
 		if cfg == nil {
 			return nil, fmt.Errorf("config object with the type '%T' not found", Config{})
 		} else if cfg.Database == "" && cfg.db == nil {
-			return nil, errors.New("empty DSN")
+			return nil, errors.New("empty Database")
 		}
 
 		if cfg.db == nil {
