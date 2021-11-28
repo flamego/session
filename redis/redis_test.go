@@ -147,7 +147,9 @@ func TestRedisStore_GC(t *testing.T) {
 	err = store.Save(ctx, sess1)
 	assert.Nil(t, err)
 
-	time.Sleep(time.Second)
+	// NOTE: Redis is behaving flaky on exact the seconds in CI, so let's wait 100ms
+	// more.
+	time.Sleep(1100 * time.Millisecond)
 	assert.False(t, store.Exist(ctx, "1"))
 
 	sess2, err := store.Read(ctx, "2")
