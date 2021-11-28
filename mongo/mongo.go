@@ -162,7 +162,7 @@ func Initer() session.Initer {
 		if cfg.db == nil {
 			client, err := mongo.Connect(ctx, cfg.Options)
 			if err != nil {
-				return nil, errors.Wrap(err, "open database")
+				return nil, errors.Wrap(err, "connect database")
 			}
 			cfg.db = client.Database(cfg.Database)
 		}
