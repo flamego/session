@@ -156,13 +156,13 @@ func Initer() session.Initer {
 		if cfg == nil {
 			return nil, fmt.Errorf("config object with the type '%T' not found", Config{})
 		} else if cfg.Database == "" && cfg.db == nil {
-			return nil, errors.New("empty DSN")
+			return nil, errors.New("empty Database")
 		}
 
 		if cfg.db == nil {
 			client, err := mongo.Connect(ctx, cfg.Options)
 			if err != nil {
-				return nil, errors.Wrap(err, "open database")
+				return nil, errors.Wrap(err, "connect database")
 			}
 			cfg.db = client.Database(cfg.Database)
 		}
