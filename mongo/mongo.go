@@ -118,10 +118,10 @@ func (s *mongoStore) GC(ctx context.Context) error {
 	return nil
 }
 
-// Options keeps the settings to set up Redis client connection.
+// Options keeps the settings to set up MongoDB client connection.
 type Options = options.ClientOptions
 
-// Config contains options for the Redis session store.
+// Config contains options for the MongoDB session store.
 type Config struct {
 	// For tests only
 	nowFunc func() time.Time
