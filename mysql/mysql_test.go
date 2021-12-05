@@ -51,20 +51,6 @@ func newTestDB(t *testing.T, ctx context.Context) (testDB *sql.DB, cleanup func(
 		t.Fatalf("Failed to open test database: %v", err)
 	}
 
-	q := fmt.Sprintf(`
-CREATE TABLE sessions (
-	%[1]s      VARCHAR(255) NOT NULL,
-	data       BLOB NOT NULL,
-	expired_at DATETIME NOT NULL,
-	PRIMARY KEY (%[1]s)
-) DEFAULT CHARSET=utf8`,
-		quoteWithBackticks("key"),
-	)
-	_, err = testDB.ExecContext(ctx, q)
-	if err != nil {
-		t.Fatalf("Failed to create sessions table: %v", err)
-	}
-
 	t.Cleanup(func() {
 		defer func() { _ = db.Close() }()
 
@@ -108,8 +94,9 @@ func TestMySQLStore(t *testing.T) {
 		session.Options{
 			Initer: Initer(),
 			Config: Config{
-				nowFunc: time.Now,
-				db:      db,
+				nowFunc:   time.Now,
+				db:        db,
+				InitTable: true,
 			},
 		},
 	))
@@ -174,9 +161,10 @@ func TestMySQLStore_GC(t *testing.T) {
 	now := time.Now()
 	store, err := Initer()(ctx,
 		Config{
-			nowFunc:  func() time.Time { return now },
-			db:       db,
-			Lifetime: time.Second,
+			nowFunc:   func() time.Time { return now },
+			db:        db,
+			Lifetime:  time.Second,
+			InitTable: true,
 		},
 	)
 	assert.Nil(t, err)

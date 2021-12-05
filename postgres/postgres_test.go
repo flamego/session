@@ -66,17 +66,6 @@ func newTestDB(t *testing.T, ctx context.Context) (testDB *sql.DB, cleanup func(
 
 	testDB = stdlib.OpenDB(*connConfig)
 
-	q := `
-CREATE TABLE sessions (
-    key        TEXT PRIMARY KEY,
-    data       BYTEA NOT NULL,
-    expired_at TIMESTAMP WITH TIME ZONE NOT NULL
-)`
-	_, err = testDB.ExecContext(ctx, q)
-	if err != nil {
-		t.Fatalf("Failed to create sessions table: %v", err)
-	}
-
 	t.Cleanup(func() {
 		defer func() { _ = db.Close() }()
 
@@ -120,8 +109,9 @@ func TestPostgresStore(t *testing.T) {
 		session.Options{
 			Initer: Initer(),
 			Config: Config{
-				nowFunc: time.Now,
-				db:      db,
+				nowFunc:   time.Now,
+				db:        db,
+				InitTable: true,
 			},
 		},
 	))
@@ -186,9 +176,10 @@ func TestPostgresStore_GC(t *testing.T) {
 	now := time.Now()
 	store, err := Initer()(ctx,
 		Config{
-			nowFunc:  func() time.Time { return now },
-			db:       db,
-			Lifetime: time.Second,
+			nowFunc:   func() time.Time { return now },
+			db:        db,
+			Lifetime:  time.Second,
+			InitTable: true,
 		},
 	)
 	assert.Nil(t, err)

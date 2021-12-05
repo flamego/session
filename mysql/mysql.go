@@ -141,6 +141,8 @@ type Config struct {
 	Encoder session.Encoder
 	// Decoder is the decoder to decode session data. Default is session.GobDecoder.
 	Decoder session.Decoder
+	// InitTable indicates whether to create a default session table when not exists automatically.
+	InitTable bool
 }
 
 // Initer returns the session.Initer for the MySQL session store.
@@ -166,6 +168,23 @@ func Initer() session.Initer {
 				return nil, errors.Wrap(err, "open database")
 			}
 			cfg.db = db
+		}
+
+		if cfg.InitTable {
+			q := fmt.Sprintf(`
+CREATE TABLE IF NOT EXISTS sessions (
+	%[1]s      VARCHAR(255) NOT NULL,
+	data       BLOB NOT NULL,
+	expired_at DATETIME NOT NULL,
+	PRIMARY KEY (%[1]s)
+) DEFAULT CHARSET=utf8`,
+				quoteWithBackticks("key"),
+			)
+
+			_, err := cfg.db.ExecContext(ctx, q)
+			if err != nil {
+				return nil, errors.Wrap(err, "create table")
+			}
 		}
 
 		if cfg.nowFunc == nil {

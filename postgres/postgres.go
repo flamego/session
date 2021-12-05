@@ -125,6 +125,8 @@ type Config struct {
 	Encoder session.Encoder
 	// Decoder is the decoder to decode session data. Default is session.GobDecoder.
 	Decoder session.Decoder
+	// InitTable indicates whether to create a default session table when not exists automatically.
+	InitTable bool
 }
 
 func openDB(dsn string) (*sql.DB, error) {
@@ -158,6 +160,19 @@ func Initer() session.Initer {
 				return nil, errors.Wrap(err, "open database")
 			}
 			cfg.db = db
+		}
+
+		if cfg.InitTable {
+			q := `
+CREATE TABLE IF NOT EXISTS sessions (
+	key        TEXT PRIMARY KEY,
+	data       BYTEA NOT NULL,
+	expired_at TIMESTAMP WITH TIME ZONE NOT NULL
+)`
+			_, err := cfg.db.ExecContext(ctx, q)
+			if err != nil {
+				return nil, errors.Wrap(err, "create table")
+			}
 		}
 
 		if cfg.nowFunc == nil {
