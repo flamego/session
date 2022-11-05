@@ -6,12 +6,15 @@ package session
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/flamego/flamego"
 )
@@ -25,8 +28,8 @@ func TestSessioner(t *testing.T) {
 	})
 
 	resp := httptest.NewRecorder()
-	req, err := http.NewRequest("GET", "/", nil)
-	assert.Nil(t, err)
+	req, err := http.NewRequest(http.MethodGet, "/", nil)
+	require.NoError(t, err)
 
 	f.ServeHTTP(resp, req)
 
@@ -37,7 +40,7 @@ func TestSessioner(t *testing.T) {
 	// Make a request again using the same session ID
 	resp = httptest.NewRecorder()
 	req, err = http.NewRequest(http.MethodGet, "/", nil)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	req.Header.Set("Cookie", cookie)
 	f.ServeHTTP(resp, req)
@@ -68,7 +71,7 @@ func TestSessioner_Header(t *testing.T) {
 
 	resp := httptest.NewRecorder()
 	req, err := http.NewRequest(http.MethodGet, "/", nil)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	f.ServeHTTP(resp, req)
 
@@ -78,12 +81,59 @@ func TestSessioner_Header(t *testing.T) {
 	// Make a request again using the same session ID
 	resp = httptest.NewRecorder()
 	req, err = http.NewRequest(http.MethodGet, "/", nil)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	req.Header.Set("Session-Id", sid)
 	f.ServeHTTP(resp, req)
 
 	assert.Equal(t, sid, resp.Body.String())
+}
+
+type noopStore struct{}
+
+func (s *noopStore) Exist(context.Context, string) bool {
+	return false
+}
+
+func (s *noopStore) Read(_ context.Context, sid string) (Session, error) {
+	return newMemorySession(sid), nil
+}
+
+func (s *noopStore) Destroy(context.Context, string) error {
+	return nil
+}
+
+func (s *noopStore) Save(ctx context.Context, _ Session) error {
+	if ctx.Err() != nil {
+		return errors.Wrap(ctx.Err(), "something went wrong")
+	}
+	return nil
+}
+
+func (s *noopStore) GC(context.Context) error {
+	return nil
+}
+
+func TestSessioner_ContextCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	f := flamego.NewWithLogger(&bytes.Buffer{})
+	f.Use(Sessioner(
+		Options{
+			Initer: func(context.Context, ...interface{}) (Store, error) {
+				return &noopStore{}, nil
+			},
+		},
+	))
+	f.Get("/", func() {
+		cancel()
+	})
+
+	resp := httptest.NewRecorder()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/", nil)
+	require.NoError(t, err)
+
+	f.ServeHTTP(resp, req)
 }
 
 func TestSession_Flash(t *testing.T) {
@@ -103,7 +153,7 @@ func TestSession_Flash(t *testing.T) {
 	// No flash in the initial request
 	resp := httptest.NewRecorder()
 	req, err := http.NewRequest(http.MethodGet, "/", nil)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	f.ServeHTTP(resp, req)
 
@@ -114,7 +164,7 @@ func TestSession_Flash(t *testing.T) {
 	// Send a request to set flash
 	resp = httptest.NewRecorder()
 	req, err = http.NewRequest(http.MethodPost, "/set-flash", nil)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	req.Header.Set("Cookie", cookie)
 	f.ServeHTTP(resp, req)
@@ -122,7 +172,7 @@ func TestSession_Flash(t *testing.T) {
 	// Flash should be returned
 	resp = httptest.NewRecorder()
 	req, err = http.NewRequest(http.MethodGet, "/", nil)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	req.Header.Set("Cookie", cookie)
 	f.ServeHTTP(resp, req)
@@ -132,7 +182,7 @@ func TestSession_Flash(t *testing.T) {
 	// Flash has gone now if we try again
 	resp = httptest.NewRecorder()
 	req, err = http.NewRequest(http.MethodGet, "/", nil)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	req.Header.Set("Cookie", cookie)
 	f.ServeHTTP(resp, req)
