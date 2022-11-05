@@ -185,7 +185,7 @@ func Sessioner(opts ...Options) flamego.Handler {
 		c.Next()
 
 		err = store.Save(c.Request().Context(), sess)
-		if err != nil {
+		if err != nil && errors.Cause(err) != context.Canceled {
 			panic("session: save: " + err.Error())
 		}
 	})
