@@ -46,7 +46,7 @@ func TestMemoryStore(t *testing.T) {
 	})
 
 	resp := httptest.NewRecorder()
-	req, err := http.NewRequest("GET", "/set", nil)
+	req, err := http.NewRequest(http.MethodGet, "/set", nil)
 	assert.Nil(t, err)
 
 	f.ServeHTTP(resp, req)
@@ -55,7 +55,7 @@ func TestMemoryStore(t *testing.T) {
 	cookie := resp.Header().Get("Set-Cookie")
 
 	resp = httptest.NewRecorder()
-	req, err = http.NewRequest("GET", "/get", nil)
+	req, err = http.NewRequest(http.MethodGet, "/get", nil)
 	assert.Nil(t, err)
 
 	req.Header.Set("Cookie", cookie)
@@ -63,7 +63,7 @@ func TestMemoryStore(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.Code)
 
 	resp = httptest.NewRecorder()
-	req, err = http.NewRequest("GET", "/destroy", nil)
+	req, err = http.NewRequest(http.MethodGet, "/destroy", nil)
 	assert.Nil(t, err)
 
 	req.Header.Set("Cookie", cookie)
