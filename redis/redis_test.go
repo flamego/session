@@ -78,7 +78,7 @@ func TestRedisStore(t *testing.T) {
 		},
 	))
 
-	now := time.Now()
+	now := time.Now().Truncate(0) // Truncate(0) strips monotonic clock readings.
 
 	f.Get("/set", func(s session.Session) {
 		s.Set("username", "flamego")

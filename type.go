@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	gob.Register(time.Time{})
+	gob.Register(time.Time{}) // The CSRF middleware requires to store time.Time in the session.
 	gob.Register([]interface{}{})
 	gob.Register(map[interface{}]interface{}{})
 	gob.Register(map[int]interface{}{})
