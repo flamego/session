@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/flamego/flamego"
+
 	"github.com/flamego/session"
 )
 
@@ -77,8 +78,11 @@ func TestRedisStore(t *testing.T) {
 		},
 	))
 
+	now := time.Now()
+
 	f.Get("/set", func(s session.Session) {
 		s.Set("username", "flamego")
+		s.Set("time", now)
 	})
 	f.Get("/get", func(s session.Session) {
 		sid := s.ID()
@@ -87,6 +91,10 @@ func TestRedisStore(t *testing.T) {
 		username, ok := s.Get("username").(string)
 		assert.True(t, ok)
 		assert.Equal(t, "flamego", username)
+
+		time, ok := s.Get("time").(time.Time)
+		assert.True(t, ok)
+		assert.Equal(t, now, time)
 
 		s.Delete("username")
 		_, ok = s.Get("username").(string)
@@ -102,7 +110,7 @@ func TestRedisStore(t *testing.T) {
 	})
 
 	resp := httptest.NewRecorder()
-	req, err := http.NewRequest("GET", "/set", nil)
+	req, err := http.NewRequest(http.MethodGet, "/set", nil)
 	assert.Nil(t, err)
 
 	f.ServeHTTP(resp, req)
@@ -111,7 +119,7 @@ func TestRedisStore(t *testing.T) {
 	cookie := resp.Header().Get("Set-Cookie")
 
 	resp = httptest.NewRecorder()
-	req, err = http.NewRequest("GET", "/get", nil)
+	req, err = http.NewRequest(http.MethodGet, "/get", nil)
 	assert.Nil(t, err)
 
 	req.Header.Set("Cookie", cookie)
@@ -119,7 +127,7 @@ func TestRedisStore(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.Code)
 
 	resp = httptest.NewRecorder()
-	req, err = http.NewRequest("GET", "/destroy", nil)
+	req, err = http.NewRequest(http.MethodGet, "/destroy", nil)
 	assert.Nil(t, err)
 
 	req.Header.Set("Cookie", cookie)

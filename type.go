@@ -8,7 +8,20 @@ import (
 	"bytes"
 	"encoding/gob"
 	"sync"
+	"time"
 )
+
+func init() {
+	gob.Register(time.Time{})
+	gob.Register([]interface{}{})
+	gob.Register(map[interface{}]interface{}{})
+	gob.Register(map[int]interface{}{})
+	gob.Register(map[string]interface{}{})
+	gob.Register(map[string]string{})
+	gob.Register(map[int]int{})
+	gob.Register(map[int]int64{})
+	gob.Register(map[int]string{})
+}
 
 // Data is the data structure for storing session data.
 type Data map[interface{}]interface{}
