@@ -172,6 +172,10 @@ func Sessioner(opts ...Options) flamego.Handler {
 		sid := opt.ReadIDFunc(c.Request().Request)
 		sess, created, err := mgr.load(c.Request().Request, sid, opt.IDLength)
 		if err != nil {
+			if errors.Cause(err) == context.Canceled {
+				c.ResponseWriter().WriteHeader(http.StatusUnprocessableEntity)
+				return
+			}
 			panic("session: load: " + err.Error())
 		}
 
