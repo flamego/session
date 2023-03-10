@@ -18,12 +18,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/log/testingadapter"
-	"github.com/jackc/pgx/v4/stdlib"
+	"github.com/flamego/flamego"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/log/testingadapter"
+	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/flamego/flamego"
 	"github.com/flamego/session"
 )
 
@@ -60,8 +61,10 @@ func newTestDB(t *testing.T, ctx context.Context) (testDB *sql.DB, cleanup func(
 		t.Fatalf("Failed to parse test database config: %v", err)
 	}
 	if testing.Verbose() {
-		connConfig.Logger = testingadapter.NewLogger(t)
-		connConfig.LogLevel = pgx.LogLevelTrace
+		connConfig.Tracer = &tracelog.TraceLog{
+			Logger:   testingadapter.NewLogger(t),
+			LogLevel: tracelog.LogLevelTrace,
+		}
 	}
 
 	testDB = stdlib.OpenDB(*connConfig)
