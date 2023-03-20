@@ -9,7 +9,7 @@ require (
 	github.com/jackc/pgx/v5 v5.3.1
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.2
-	go.mongodb.org/mongo-driver v1.11.2
+	go.mongodb.org/mongo-driver v1.11.3
 )
 
 require (
