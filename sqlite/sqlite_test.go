@@ -129,7 +129,6 @@ func TestSQLiteStore(t *testing.T) {
 }
 
 func TestSQLiteStore_GC(t *testing.T) {
-	return
 	ctx := context.Background()
 	db, cleanup := newTestDB(t, ctx)
 	t.Cleanup(func() {
