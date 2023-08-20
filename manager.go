@@ -24,6 +24,9 @@ type Store interface {
 	Read(ctx context.Context, sid string) (Session, error)
 	// Destroy deletes session with given ID from the session store completely.
 	Destroy(ctx context.Context, sid string) error
+	// Touch updates the expiry time of the session with given ID. It does nothing
+	// if there is no session associated with the ID.
+	Touch(ctx context.Context, sid string) error
 	// Save persists session data to the session store.
 	Save(ctx context.Context, session Session) error
 	// GC performs a GC operation on the session store.

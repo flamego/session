@@ -10,12 +10,13 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIsValidSessionID(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		s, err := randomChars(16)
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		assert.True(t, isValidSessionID(s, 16))
 	}
 

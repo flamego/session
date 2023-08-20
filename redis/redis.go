@@ -63,6 +63,14 @@ func (s *redisStore) Destroy(ctx context.Context, sid string) error {
 	return s.client.Del(ctx, sid).Err()
 }
 
+func (s *redisStore) Touch(ctx context.Context, sid string) error {
+	err := s.client.Expire(ctx, sid, s.lifetime).Err()
+	if err != nil {
+		return errors.Wrap(err, "expire")
+	}
+	return nil
+}
+
 func (s *redisStore) Save(ctx context.Context, sess session.Session) error {
 	binary, err := sess.Encode()
 	if err != nil {

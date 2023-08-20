@@ -81,6 +81,15 @@ func (s *postgresStore) Destroy(ctx context.Context, sid string) error {
 	return err
 }
 
+func (s *postgresStore) Touch(ctx context.Context, sid string) error {
+	q := fmt.Sprintf(`UPDATE %q SET expired_at = $1 WHERE key = $2`, s.table)
+	_, err := s.db.ExecContext(ctx, q, s.nowFunc().Add(s.lifetime).UTC(), sid)
+	if err != nil {
+		return errors.Wrap(err, "update")
+	}
+	return nil
+}
+
 func (s *postgresStore) Save(ctx context.Context, sess session.Session) error {
 	binary, err := sess.Encode()
 	if err != nil {

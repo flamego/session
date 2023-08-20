@@ -26,6 +26,7 @@ type BaseSession struct {
 	sid     string       // The session ID
 	lock    sync.RWMutex // The mutex to guard accesses to the data
 	data    Data         // The map of the session data
+	changed bool         // Whether the session has changed
 	encoder Encoder      // The encoder to encode the session data to binary
 }
 
@@ -51,24 +52,28 @@ func (s *BaseSession) Get(key interface{}) interface{} {
 func (s *BaseSession) Set(key, val interface{}) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+	s.changed = true
 	s.data[key] = val
 }
 
 func (s *BaseSession) SetFlash(val interface{}) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+	s.changed = true
 	s.data[flashKey] = val
 }
 
 func (s *BaseSession) Delete(key interface{}) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+	s.changed = true
 	delete(s.data, key)
 }
 
 func (s *BaseSession) Flush() {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+	s.changed = true
 	s.data = make(Data)
 }
 
@@ -81,7 +86,14 @@ func (s *BaseSession) Encode() ([]byte, error) {
 func (s *BaseSession) SetData(data Data) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+	s.changed = true
 	s.data = data
+}
+
+func (s *BaseSession) hasChanged() bool {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+	return s.changed
 }
 
 // GobEncoder is a session data encoder using Gob.
