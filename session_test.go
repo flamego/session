@@ -103,6 +103,10 @@ func (s *noopStore) Destroy(context.Context, string) error {
 	return nil
 }
 
+func (s *noopStore) Touch(context.Context, string) error {
+	return nil
+}
+
 func (s *noopStore) Save(ctx context.Context, _ Session) error {
 	if ctx.Err() != nil {
 		return errors.Wrap(ctx.Err(), "something went wrong")

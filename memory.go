@@ -155,9 +155,21 @@ func (s *memoryStore) Destroy(_ context.Context, sid string) error {
 	return nil
 }
 
-func (s *memoryStore) Save(context.Context, Session) error {
+func (s *memoryStore) Touch(_ context.Context, sid string) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	sess, ok := s.index[sid]
+	if !ok {
+		return nil
+	}
+
+	sess.SetLastAccessedAt(s.nowFunc())
+	heap.Fix(s, sess.index)
 	return nil
 }
+
+func (s *memoryStore) Save(context.Context, Session) error { return nil }
 
 func (s *memoryStore) GC(ctx context.Context) error {
 	// Removing expired sessions from top of the heap until there is no more expired

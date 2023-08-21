@@ -104,6 +104,19 @@ func (s *fileStore) Destroy(_ context.Context, sid string) error {
 	return os.Remove(s.filename(sid))
 }
 
+func (s *fileStore) Touch(_ context.Context, sid string) error {
+	filename := s.filename(sid)
+	if !isFile(filename) {
+		return nil
+	}
+
+	err := os.Chtimes(filename, s.nowFunc(), s.nowFunc())
+	if err != nil {
+		return errors.Wrap(err, "change times")
+	}
+	return nil
+}
+
 func (s *fileStore) Save(_ context.Context, sess Session) error {
 	if len(sess.ID()) < minimumSIDLength {
 		return ErrMinimumSIDLength
@@ -114,9 +127,15 @@ func (s *fileStore) Save(_ context.Context, sess Session) error {
 		return errors.Wrap(err, "encode")
 	}
 
-	err = os.WriteFile(s.filename(sess.ID()), binary, 0600)
+	filename := s.filename(sess.ID())
+	err = os.WriteFile(filename, binary, 0600)
 	if err != nil {
 		return errors.Wrap(err, "write file")
+	}
+
+	err = os.Chtimes(filename, s.nowFunc(), s.nowFunc())
+	if err != nil {
+		return errors.Wrap(err, "change times")
 	}
 	return nil
 }
@@ -145,7 +164,7 @@ func (s *fileStore) GC(ctx context.Context) error {
 		}
 		return os.Remove(path)
 	})
-	if err != nil && err != ctx.Err() {
+	if err != nil && !errors.Is(err, ctx.Err()) {
 		return err
 	}
 	return nil

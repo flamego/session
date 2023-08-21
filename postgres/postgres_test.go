@@ -24,6 +24,7 @@ import (
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/flamego/session"
 )
@@ -145,7 +146,7 @@ func TestPostgresStore(t *testing.T) {
 
 	resp := httptest.NewRecorder()
 	req, err := http.NewRequest("GET", "/set", nil)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	f.ServeHTTP(resp, req)
 	assert.Equal(t, http.StatusOK, resp.Code)
@@ -154,7 +155,7 @@ func TestPostgresStore(t *testing.T) {
 
 	resp = httptest.NewRecorder()
 	req, err = http.NewRequest("GET", "/get", nil)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	req.Header.Set("Cookie", cookie)
 	f.ServeHTTP(resp, req)
@@ -162,7 +163,7 @@ func TestPostgresStore(t *testing.T) {
 
 	resp = httptest.NewRecorder()
 	req, err = http.NewRequest("GET", "/destroy", nil)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	req.Header.Set("Cookie", cookie)
 	f.ServeHTTP(resp, req)
@@ -185,38 +186,71 @@ func TestPostgresStore_GC(t *testing.T) {
 			InitTable: true,
 		},
 	)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	sess1, err := store.Read(ctx, "1")
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	err = store.Save(ctx, sess1)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	now = now.Add(-2 * time.Second)
 	sess2, err := store.Read(ctx, "2")
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	sess2.Set("name", "flamego")
 	err = store.Save(ctx, sess2)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	// Read on an expired session should wipe data but preserve the record
 	now = now.Add(2 * time.Second)
 	tmp, err := store.Read(ctx, "2")
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assert.Nil(t, tmp.Get("name"))
 
 	now = now.Add(-2 * time.Second)
 	sess3, err := store.Read(ctx, "3")
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	err = store.Save(ctx, sess3)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	now = now.Add(2 * time.Second)
 	err = store.GC(ctx) // sess3 should be recycled
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	assert.True(t, store.Exist(ctx, "1"))
 	assert.False(t, store.Exist(ctx, "2"))
 	assert.False(t, store.Exist(ctx, "3"))
+}
+
+func TestPostgresStore_Touch(t *testing.T) {
+	ctx := context.Background()
+	db, cleanup := newTestDB(t, ctx)
+	t.Cleanup(func() {
+		assert.Nil(t, cleanup())
+	})
+
+	now := time.Now()
+	store, err := Initer()(ctx,
+		Config{
+			nowFunc:   func() time.Time { return now },
+			db:        db,
+			Lifetime:  time.Second,
+			InitTable: true,
+		},
+	)
+	require.Nil(t, err)
+
+	sess, err := store.Read(ctx, "1")
+	require.Nil(t, err)
+	err = store.Save(ctx, sess)
+	require.Nil(t, err)
+
+	now = now.Add(2 * time.Second)
+	// Touch should keep the session alive
+	err = store.Touch(ctx, sess.ID())
+	require.Nil(t, err)
+
+	err = store.GC(ctx)
+	require.Nil(t, err)
+	assert.True(t, store.Exist(ctx, sess.ID()))
 }

@@ -89,6 +89,20 @@ func (s *mongoStore) Destroy(ctx context.Context, sid string) error {
 	return nil
 }
 
+func (s *mongoStore) Touch(ctx context.Context, sid string) error {
+	_, err := s.db.Collection(s.collection).
+		UpdateOne(ctx,
+			bson.M{"key": sid},
+			bson.M{"$set": bson.M{
+				"expired_at": s.nowFunc().Add(s.lifetime).UTC(),
+			}},
+		)
+	if err != nil {
+		return errors.Wrap(err, "update")
+	}
+	return nil
+}
+
 func (s *mongoStore) Save(ctx context.Context, sess session.Session) error {
 	binary, err := sess.Encode()
 	if err != nil {

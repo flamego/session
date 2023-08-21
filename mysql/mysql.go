@@ -95,6 +95,18 @@ func (s *mysqlStore) Destroy(ctx context.Context, sid string) error {
 	return err
 }
 
+func (s *mysqlStore) Touch(ctx context.Context, sid string) error {
+	q := fmt.Sprintf(`UPDATE %s SET expired_at = ? WHERE %s = ?`,
+		quoteWithBackticks(s.table),
+		quoteWithBackticks("key"),
+	)
+	_, err := s.db.ExecContext(ctx, q, s.nowFunc().Add(s.lifetime).UTC(), sid)
+	if err != nil {
+		return errors.Wrap(err, "update")
+	}
+	return nil
+}
+
 func (s *mysqlStore) Save(ctx context.Context, sess session.Session) error {
 	binary, err := sess.Encode()
 	if err != nil {

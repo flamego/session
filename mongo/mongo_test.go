@@ -15,6 +15,7 @@ import (
 
 	"github.com/flamego/flamego"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
@@ -175,4 +176,42 @@ func TestMongoStore_GC(t *testing.T) {
 	assert.True(t, store.Exist(ctx, "1"))
 	assert.False(t, store.Exist(ctx, "2"))
 	assert.False(t, store.Exist(ctx, "3"))
+}
+
+func TestMongoStore_Touch(t *testing.T) {
+	ctx := context.Background()
+	db, cleanup := newTestDB(t, ctx)
+	t.Cleanup(func() {
+		assert.Nil(t, cleanup())
+	})
+
+	now := time.Now()
+	store, err := Initer()(ctx,
+		Config{
+			nowFunc:  func() time.Time { return now },
+			db:       db,
+			Lifetime: time.Second,
+		},
+	)
+	require.Nil(t, err)
+
+	sess, err := store.Read(ctx, "1")
+	require.Nil(t, err)
+	sess.Set("name", "flamego")
+	err = store.Save(ctx, sess)
+	require.Nil(t, err)
+
+	now = now.Add(2 * time.Second)
+	// Touch should keep the session alive
+	err = store.Touch(ctx, sess.ID())
+	require.Nil(t, err)
+
+	err = store.GC(ctx)
+	require.Nil(t, err)
+	assert.True(t, store.Exist(ctx, sess.ID()))
+
+	// Make sure value is not wiped
+	sess, err = store.Read(ctx, sess.ID())
+	require.NoError(t, err)
+	assert.Equal(t, "flamego", sess.Get("name"))
 }
