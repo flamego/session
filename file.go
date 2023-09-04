@@ -58,7 +58,7 @@ func (s *fileStore) Exist(_ context.Context, sid string) bool {
 	return isFile(s.filename(sid))
 }
 
-func (s *fileStore) Read(ctx context.Context, sid string) (Session, error) {
+func (s *fileStore) Read(_ context.Context, sid string) (Session, error) {
 	if len(sid) < minimumSIDLength {
 		return nil, ErrMinimumSIDLength
 	}
@@ -91,10 +91,7 @@ func (s *fileStore) Read(ctx context.Context, sid string) (Session, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "decode")
 	}
-
-	sess := NewBaseSession(sid, s.encoder)
-	sess.SetData(data)
-	return sess, nil
+	return NewBaseSessionWithData(sid, s.encoder, data), nil
 }
 
 func (s *fileStore) Destroy(_ context.Context, sid string) error {

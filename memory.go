@@ -129,7 +129,7 @@ func (s *memoryStore) Read(_ context.Context, sid string) (Session, error) {
 	if ok {
 		// Discard existing data if it's expired
 		if !s.nowFunc().Before(sess.LastAccessedAt().Add(s.lifetime)) {
-			sess.SetData(make(Data))
+			sess.data = make(Data)
 		}
 		sess.SetLastAccessedAt(s.nowFunc())
 		heap.Fix(s, sess.index)

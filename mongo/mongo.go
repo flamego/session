@@ -70,10 +70,7 @@ func (s *mongoStore) Read(ctx context.Context, sid string) (session.Session, err
 		if err != nil {
 			return nil, errors.Wrap(err, "decode")
 		}
-
-		sess := session.NewBaseSession(sid, s.encoder)
-		sess.SetData(data)
-		return sess, nil
+		return session.NewBaseSessionWithData(sid, s.encoder, data), nil
 	} else if err != mongo.ErrNoDocuments {
 		return nil, errors.Wrap(err, "find")
 	}
