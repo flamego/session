@@ -39,6 +39,16 @@ func NewBaseSession(sid string, encoder Encoder) *BaseSession {
 	}
 }
 
+// NewBaseSessionWithData returns a new BaseSession with given session ID and
+// initial data.
+func NewBaseSessionWithData(sid string, encoder Encoder, data Data) *BaseSession {
+	return &BaseSession{
+		sid:     sid,
+		data:    data,
+		encoder: encoder,
+	}
+}
+
 func (s *BaseSession) ID() string {
 	return s.sid
 }
@@ -81,13 +91,6 @@ func (s *BaseSession) Encode() ([]byte, error) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 	return s.encoder(s.data)
-}
-
-func (s *BaseSession) SetData(data Data) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	s.changed = true
-	s.data = data
 }
 
 func (s *BaseSession) hasChanged() bool {

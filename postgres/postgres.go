@@ -64,10 +64,7 @@ func (s *postgresStore) Read(ctx context.Context, sid string) (session.Session, 
 		if err != nil {
 			return nil, errors.Wrap(err, "decode")
 		}
-
-		sess := session.NewBaseSession(sid, s.encoder)
-		sess.SetData(data)
-		return sess, nil
+		return session.NewBaseSessionWithData(sid, s.encoder, data), nil
 	} else if err != sql.ErrNoRows {
 		return nil, errors.Wrap(err, "select")
 	}
