@@ -19,29 +19,31 @@ var _ session.Store = (*redisStore)(nil)
 
 // redisStore is a Redis implementation of the session store.
 type redisStore struct {
-	client   *redis.Client   // The client connection
-	lifetime time.Duration   // The duration to have access to a session before being recycled
-	encoder  session.Encoder // The encoder to encode the session data before saving
-	decoder  session.Decoder // The decoder to decode binary to session data after reading
+	client    *redis.Client   // The client connection
+	keyPrefix string          // The prefix to use for keys
+	lifetime  time.Duration   // The duration to have access to a session before being recycled
+	encoder   session.Encoder // The encoder to encode the session data before saving
+	decoder   session.Decoder // The decoder to decode binary to session data after reading
 }
 
 // newRedisStore returns a new Redis session store based on given configuration.
 func newRedisStore(cfg Config) *redisStore {
 	return &redisStore{
-		client:   cfg.client,
-		lifetime: cfg.Lifetime,
-		encoder:  cfg.Encoder,
-		decoder:  cfg.Decoder,
+		client:    cfg.client,
+		keyPrefix: cfg.KeyPrefix,
+		lifetime:  cfg.Lifetime,
+		encoder:   cfg.Encoder,
+		decoder:   cfg.Decoder,
 	}
 }
 
 func (s *redisStore) Exist(ctx context.Context, sid string) bool {
-	result, err := s.client.Exists(ctx, sid).Result()
+	result, err := s.client.Exists(ctx, s.keyPrefix+sid).Result()
 	return err == nil && result == 1
 }
 
 func (s *redisStore) Read(ctx context.Context, sid string) (session.Session, error) {
-	binary, err := s.client.Get(ctx, sid).Result()
+	binary, err := s.client.Get(ctx, s.keyPrefix+sid).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return session.NewBaseSession(sid, s.encoder), nil
@@ -57,11 +59,11 @@ func (s *redisStore) Read(ctx context.Context, sid string) (session.Session, err
 }
 
 func (s *redisStore) Destroy(ctx context.Context, sid string) error {
-	return s.client.Del(ctx, sid).Err()
+	return s.client.Del(ctx, s.keyPrefix+sid).Err()
 }
 
 func (s *redisStore) Touch(ctx context.Context, sid string) error {
-	err := s.client.Expire(ctx, sid, s.lifetime).Err()
+	err := s.client.Expire(ctx, s.keyPrefix+sid, s.lifetime).Err()
 	if err != nil {
 		return errors.Wrap(err, "expire")
 	}
@@ -74,7 +76,7 @@ func (s *redisStore) Save(ctx context.Context, sess session.Session) error {
 		return errors.Wrap(err, "encode")
 	}
 
-	err = s.client.SetEX(ctx, sess.ID(), binary, s.lifetime).Err()
+	err = s.client.SetEX(ctx, s.keyPrefix+sess.ID(), binary, s.lifetime).Err()
 	if err != nil {
 		return errors.Wrap(err, "set")
 	}
@@ -95,6 +97,8 @@ type Config struct {
 
 	// Options is the settings to set up Redis client connection.
 	Options *Options
+	// KeyPrefix is the prefix to use for keys in Redis. Default is "session:".
+	KeyPrefix string
 	// Lifetime is the duration to have no access to a session before being
 	// recycled. Default is 3600 seconds.
 	Lifetime time.Duration
@@ -125,6 +129,9 @@ func Initer() session.Initer {
 			cfg.client = redis.NewClient(cfg.Options)
 		}
 
+		if cfg.KeyPrefix == "" {
+			cfg.KeyPrefix = "session:"
+		}
 		if cfg.Lifetime.Seconds() < 1 {
 			cfg.Lifetime = 3600 * time.Second
 		}
