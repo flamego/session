@@ -93,7 +93,7 @@ func (s *BaseSession) Encode() ([]byte, error) {
 	return s.encoder(s.data)
 }
 
-func (s *BaseSession) hasChanged() bool {
+func (s *BaseSession) HasChanged() bool {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 	return s.changed
