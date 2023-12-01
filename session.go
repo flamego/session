@@ -32,9 +32,8 @@ type Session interface {
 	Flush()
 	// Encode encodes session data to binary.
 	Encode() ([]byte, error)
-
-	// hasChanged returns whether the session has changed.
-	hasChanged() bool
+	// HasChanged returns whether the session has changed.
+	HasChanged() bool
 }
 
 // CookieOptions contains options for setting HTTP cookies.
@@ -193,7 +192,7 @@ func Sessioner(opts ...Options) flamego.Handler {
 		c.MapTo(flash, (*Flash)(nil))
 		c.Next()
 
-		if sess.hasChanged() {
+		if sess.HasChanged() {
 			err = store.Save(c.Request().Context(), sess)
 		} else {
 			err = store.Touch(c.Request().Context(), sess.ID())
