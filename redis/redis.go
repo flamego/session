@@ -29,7 +29,7 @@ type redisStore struct {
 // newRedisStore returns a new Redis session store based on given configuration.
 func newRedisStore(cfg Config) *redisStore {
 	return &redisStore{
-		client:    cfg.client,
+		client:    cfg.Client,
 		keyPrefix: cfg.KeyPrefix,
 		lifetime:  cfg.Lifetime,
 		encoder:   cfg.Encoder,
@@ -92,9 +92,9 @@ type Options = redis.Options
 
 // Config contains options for the Redis session store.
 type Config struct {
-	// For tests only
-	client *redis.Client
-
+	// Client is the Redis Client connection. If not set, a new client will be
+	// created based on Options.
+	Client *redis.Client
 	// Options is the settings to set up Redis client connection.
 	Options *Options
 	// KeyPrefix is the prefix to use for keys in Redis. Default is "session:".
@@ -121,14 +121,13 @@ func Initer() session.Initer {
 
 		if cfg == nil {
 			return nil, fmt.Errorf("config object with the type '%T' not found", Config{})
-		} else if cfg.Options == nil && cfg.client == nil {
+		} else if cfg.Options == nil && cfg.Client == nil {
 			return nil, errors.New("empty Options")
 		}
 
-		if cfg.client == nil {
-			cfg.client = redis.NewClient(cfg.Options)
+		if cfg.Client == nil {
+			cfg.Client = redis.NewClient(cfg.Options)
 		}
-
 		if cfg.KeyPrefix == "" {
 			cfg.KeyPrefix = "session:"
 		}
