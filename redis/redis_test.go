@@ -73,7 +73,7 @@ func TestRedisStore(t *testing.T) {
 		session.Options{
 			Initer: Initer(),
 			Config: Config{
-				client: client,
+				Client: client,
 			},
 		},
 	))
@@ -137,7 +137,7 @@ func TestRedisStore_GC(t *testing.T) {
 
 	store, err := Initer()(ctx,
 		Config{
-			client:   client,
+			Client:   client,
 			Lifetime: time.Second,
 		},
 	)
@@ -174,7 +174,7 @@ func TestRedisStore_Touch(t *testing.T) {
 
 	store, err := Initer()(ctx,
 		Config{
-			client:   client,
+			Client:   client,
 			Lifetime: time.Second,
 		},
 	)
