@@ -118,26 +118,19 @@ func isValidSessionID(sid string, idLength int) bool {
 }
 
 // load loads the session from the session store with session ID provided in the
-// named cookie. If a session with the ID does not exist, it creates a new
-// session with the same ID. A boolean value is returned to indicate whether a
-// new session is created.
+// named cookie. It returns `created=true` if a new session is created.
 func (m *manager) load(r *http.Request, sid string, idLength int) (_ Session, created bool, err error) {
-	if isValidSessionID(sid, idLength) && m.store.Exist(r.Context(), sid) {
-		sess, err := m.store.Read(r.Context(), sid)
+	if !isValidSessionID(sid, idLength) {
+		sid, err = randomChars(idLength)
 		if err != nil {
-			return nil, false, errors.Wrap(err, "read")
+			return nil, false, errors.Wrap(err, "new ID")
 		}
-		return sess, false, nil
-	}
-
-	sid, err = randomChars(idLength)
-	if err != nil {
-		return nil, false, errors.Wrap(err, "new ID")
+		created = true
 	}
 
 	sess, err := m.store.Read(r.Context(), sid)
 	if err != nil {
 		return nil, false, errors.Wrap(err, "read")
 	}
-	return sess, true, nil
+	return sess, created, nil
 }
