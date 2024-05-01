@@ -26,6 +26,10 @@ func TestSessioner(t *testing.T) {
 		_ = store.GC(c.Request().Context())
 		return session.ID()
 	})
+	f.Get("/regenerate", func(session Session) {
+		err := session.RegenerateID()
+		require.NoError(t, err)
+	})
 
 	resp := httptest.NewRecorder()
 	req, err := http.NewRequest(http.MethodGet, "/", nil)
@@ -47,6 +51,18 @@ func TestSessioner(t *testing.T) {
 
 	got := fmt.Sprintf("flamego_session=%s; Path=/; HttpOnly; SameSite=Lax", resp.Body.String())
 	assert.Equal(t, cookie, got)
+
+	// Force-regenerate the session ID even if the session ID exists.
+	resp = httptest.NewRecorder()
+	req, err = http.NewRequest(http.MethodGet, "/regenerate", nil)
+	require.NoError(t, err)
+
+	req.Header.Set("Cookie", cookie)
+	f.ServeHTTP(resp, req)
+
+	got = resp.Header().Get("Set-Cookie")
+	assert.NotEmpty(t, got)
+	assert.NotEqual(t, cookie, got)
 }
 
 func TestSessioner_Header(t *testing.T) {

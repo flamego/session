@@ -8,6 +8,8 @@ import (
 	"bytes"
 	"encoding/gob"
 	"sync"
+
+	"github.com/pkg/errors"
 )
 
 // Data is the data structure for storing session data.
@@ -26,7 +28,7 @@ type BaseSession struct {
 	sid     string       // The session ID
 	lock    sync.RWMutex // The mutex to guard accesses to the data
 	data    Data         // The map of the session data
-	changed bool         // Whether the session has changed
+	changed bool         // Whether the session has changed since read
 	encoder Encoder      // The encoder to encode the session data to binary
 }
 
@@ -51,6 +53,22 @@ func NewBaseSessionWithData(sid string, encoder Encoder, data Data) *BaseSession
 
 func (s *BaseSession) ID() string {
 	return s.sid
+}
+
+func (s *BaseSession) RegenerateID() error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	// Re-use the session ID with the same length, the length must already be valid
+	// for the code to run to this point.
+	sid, err := randomChars(len(s.sid))
+	if err != nil {
+		return errors.Wrap(err, "new ID")
+	}
+
+	s.sid = sid
+	s.changed = true
+	return nil
 }
 
 func (s *BaseSession) Get(key interface{}) interface{} {
