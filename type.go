@@ -7,6 +7,7 @@ package session
 import (
 	"bytes"
 	"encoding/gob"
+	"net/http"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -21,6 +22,9 @@ type Encoder func(Data) ([]byte, error)
 // Decoder is a decoder to decode binary to session data.
 type Decoder func([]byte) (Data, error)
 
+// IDWriter is a function that writes the session ID to client (browser).
+type IDWriter func(w http.ResponseWriter, r *http.Request, sid string)
+
 var _ Session = (*BaseSession)(nil)
 
 // BaseSession implements basic operations for the session data.
@@ -29,25 +33,29 @@ type BaseSession struct {
 	lock    sync.RWMutex // The mutex to guard accesses to the data
 	data    Data         // The map of the session data
 	changed bool         // Whether the session has changed since read
-	encoder Encoder      // The encoder to encode the session data to binary
+
+	encoder  Encoder
+	idWriter IDWriter
 }
 
 // NewBaseSession returns a new BaseSession with given session ID.
-func NewBaseSession(sid string, encoder Encoder) *BaseSession {
+func NewBaseSession(sid string, encoder Encoder, idWriter IDWriter) *BaseSession {
 	return &BaseSession{
-		sid:     sid,
-		data:    make(Data),
-		encoder: encoder,
+		sid:      sid,
+		data:     make(Data),
+		encoder:  encoder,
+		idWriter: idWriter,
 	}
 }
 
 // NewBaseSessionWithData returns a new BaseSession with given session ID and
 // initial data.
-func NewBaseSessionWithData(sid string, encoder Encoder, data Data) *BaseSession {
+func NewBaseSessionWithData(sid string, encoder Encoder, idWriter IDWriter, data Data) *BaseSession {
 	return &BaseSession{
-		sid:     sid,
-		data:    data,
-		encoder: encoder,
+		sid:      sid,
+		data:     data,
+		encoder:  encoder,
+		idWriter: idWriter,
 	}
 }
 
@@ -55,7 +63,7 @@ func (s *BaseSession) ID() string {
 	return s.sid
 }
 
-func (s *BaseSession) RegenerateID() error {
+func (s *BaseSession) RegenerateID(w http.ResponseWriter, r *http.Request) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -66,8 +74,8 @@ func (s *BaseSession) RegenerateID() error {
 		return errors.Wrap(err, "new ID")
 	}
 
+	s.idWriter(w, r, sid)
 	s.sid = sid
-	s.changed = true
 	return nil
 }
 

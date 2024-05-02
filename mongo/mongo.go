@@ -26,12 +26,14 @@ type mongoStore struct {
 	lifetime   time.Duration    // The duration to have access to a session before being recycled
 	db         *mongo.Database  // The database connection
 	collection string           // The database collection for storing session data
-	encoder    session.Encoder  // The encoder to encode the session data before saving
-	decoder    session.Decoder  // The decoder to decode binary to session data after reading
+
+	encoder  session.Encoder
+	decoder  session.Decoder
+	idWriter session.IDWriter
 }
 
 // newMongoStore returns a new MongoDB session store based on given configuration.
-func newMongoStore(cfg Config) *mongoStore {
+func newMongoStore(cfg Config, idWriter session.IDWriter) *mongoStore {
 	return &mongoStore{
 		nowFunc:    cfg.nowFunc,
 		lifetime:   cfg.Lifetime,
@@ -39,6 +41,7 @@ func newMongoStore(cfg Config) *mongoStore {
 		collection: cfg.Collection,
 		encoder:    cfg.Encoder,
 		decoder:    cfg.Decoder,
+		idWriter:   idWriter,
 	}
 }
 
@@ -63,19 +66,19 @@ func (s *mongoStore) Read(ctx context.Context, sid string) (session.Session, err
 
 		// Discard existing data if it's expired
 		if !s.nowFunc().Before(expiredAt.Time().Add(s.lifetime)) {
-			return session.NewBaseSession(sid, s.encoder), nil
+			return session.NewBaseSession(sid, s.encoder, s.idWriter), nil
 		}
 
 		data, err := s.decoder(binary.Data)
 		if err != nil {
 			return nil, errors.Wrap(err, "decode")
 		}
-		return session.NewBaseSessionWithData(sid, s.encoder, data), nil
+		return session.NewBaseSessionWithData(sid, s.encoder, s.idWriter, data), nil
 	} else if err != mongo.ErrNoDocuments {
 		return nil, errors.Wrap(err, "find")
 	}
 
-	return session.NewBaseSession(sid, s.encoder), nil
+	return session.NewBaseSession(sid, s.encoder, s.idWriter), nil
 }
 
 func (s *mongoStore) Destroy(ctx context.Context, sid string) error {
@@ -157,11 +160,17 @@ type Config struct {
 func Initer() session.Initer {
 	return func(ctx context.Context, args ...interface{}) (session.Store, error) {
 		var cfg *Config
+		var idWriter session.IDWriter
 		for i := range args {
 			switch v := args[i].(type) {
 			case Config:
 				cfg = &v
+			case session.IDWriter:
+				idWriter = v
 			}
+		}
+		if idWriter == nil {
+			return nil, errors.New("IDWriter not given")
 		}
 
 		if cfg == nil {
@@ -194,6 +203,6 @@ func Initer() session.Initer {
 			cfg.Decoder = session.GobDecoder
 		}
 
-		return newMongoStore(*cfg), nil
+		return newMongoStore(*cfg, idWriter), nil
 	}
 }

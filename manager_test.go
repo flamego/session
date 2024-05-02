@@ -26,7 +26,7 @@ func TestIsValidSessionID(t *testing.T) {
 }
 
 func TestManager_startGC(t *testing.T) {
-	m := newManager(newMemoryStore(MemoryConfig{}))
+	m := newManager(newMemoryStore(MemoryConfig{}, nil))
 	stop := m.startGC(
 		context.Background(),
 		time.Minute,

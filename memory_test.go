@@ -80,6 +80,7 @@ func TestMemoryStore_GC(t *testing.T) {
 			nowFunc:  func() time.Time { return now },
 			Lifetime: time.Second,
 		},
+		nil,
 	)
 
 	sess1, err := store.Read(ctx, "1")
@@ -125,6 +126,7 @@ func TestMemoryStore_Touch(t *testing.T) {
 			nowFunc:  func() time.Time { return now },
 			Lifetime: time.Second,
 		},
+		nil,
 	)
 
 	sess, err := store.Read(ctx, "1")

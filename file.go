@@ -22,18 +22,21 @@ type fileStore struct {
 	nowFunc  func() time.Time // The function to return the current time
 	lifetime time.Duration    // The duration to have no access to a session before being recycled
 	rootDir  string           // The root directory of file session items stored on the local file system
-	encoder  Encoder          // The encoder to encode the session data before saving
-	decoder  Decoder          // The decoder to decode binary to session data after reading
+
+	encoder  Encoder
+	decoder  Decoder
+	idWriter IDWriter
 }
 
 // newFileStore returns a new file session store based on given configuration.
-func newFileStore(cfg FileConfig) *fileStore {
+func newFileStore(cfg FileConfig, idWriter IDWriter) *fileStore {
 	return &fileStore{
 		nowFunc:  cfg.nowFunc,
 		lifetime: cfg.Lifetime,
 		rootDir:  cfg.RootDir,
 		encoder:  cfg.Encoder,
 		decoder:  cfg.Decoder,
+		idWriter: idWriter,
 	}
 }
 
@@ -70,7 +73,7 @@ func (s *fileStore) Read(_ context.Context, sid string) (Session, error) {
 			return nil, errors.Wrap(err, "create parent directory")
 		}
 
-		return NewBaseSession(sid, s.encoder), nil
+		return NewBaseSession(sid, s.encoder, s.idWriter), nil
 	}
 
 	// Discard existing data if it's expired
@@ -79,7 +82,7 @@ func (s *fileStore) Read(_ context.Context, sid string) (Session, error) {
 		return nil, errors.Wrap(err, "stat file")
 	}
 	if !fi.ModTime().Add(s.lifetime).After(s.nowFunc()) {
-		return NewBaseSession(sid, s.encoder), nil
+		return NewBaseSession(sid, s.encoder, s.idWriter), nil
 	}
 
 	binary, err := os.ReadFile(filename)
@@ -91,7 +94,7 @@ func (s *fileStore) Read(_ context.Context, sid string) (Session, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "decode")
 	}
-	return NewBaseSessionWithData(sid, s.encoder, data), nil
+	return NewBaseSessionWithData(sid, s.encoder, s.idWriter, data), nil
 }
 
 func (s *fileStore) Destroy(_ context.Context, sid string) error {
@@ -169,7 +172,7 @@ func (s *fileStore) GC(ctx context.Context) error {
 
 // FileConfig contains options for the file session store.
 type FileConfig struct {
-	// For tests only
+	// For tests only.
 	nowFunc func() time.Time
 
 	// Lifetime is the duration to have no access to a session before being
@@ -188,11 +191,17 @@ type FileConfig struct {
 func FileIniter() Initer {
 	return func(ctx context.Context, args ...interface{}) (Store, error) {
 		var cfg *FileConfig
+		var idWriter IDWriter
 		for i := range args {
 			switch v := args[i].(type) {
 			case FileConfig:
 				cfg = &v
+			case IDWriter:
+				idWriter = v
 			}
+		}
+		if idWriter == nil {
+			return nil, errors.New("IDWriter not given")
 		}
 
 		if cfg == nil {
@@ -214,6 +223,6 @@ func FileIniter() Initer {
 			cfg.Decoder = GobDecoder
 		}
 
-		return newFileStore(*cfg), nil
+		return newFileStore(*cfg, idWriter), nil
 	}
 }

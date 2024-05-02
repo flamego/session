@@ -140,6 +140,7 @@ func TestRedisStore_GC(t *testing.T) {
 			Client:   client,
 			Lifetime: time.Second,
 		},
+		session.IDWriter(func(http.ResponseWriter, *http.Request, string) {}),
 	)
 	require.Nil(t, err)
 
@@ -177,6 +178,7 @@ func TestRedisStore_Touch(t *testing.T) {
 			Client:   client,
 			Lifetime: time.Second,
 		},
+		session.IDWriter(func(http.ResponseWriter, *http.Request, string) {}),
 	)
 	require.Nil(t, err)
 

@@ -141,6 +141,7 @@ func TestMongoStore_GC(t *testing.T) {
 			db:       db,
 			Lifetime: time.Second,
 		},
+		session.IDWriter(func(http.ResponseWriter, *http.Request, string) {}),
 	)
 	assert.NoError(t, err)
 
@@ -192,6 +193,7 @@ func TestMongoStore_Touch(t *testing.T) {
 			db:       db,
 			Lifetime: time.Second,
 		},
+		session.IDWriter(func(http.ResponseWriter, *http.Request, string) {}),
 	)
 	require.Nil(t, err)
 
