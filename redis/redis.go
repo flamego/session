@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/flamego/session"
 )
@@ -79,7 +79,7 @@ func (s *redisStore) Save(ctx context.Context, sess session.Session) error {
 		return errors.Wrap(err, "encode")
 	}
 
-	err = s.client.SetEX(ctx, s.keyPrefix+sess.ID(), binary, s.lifetime).Err()
+	err = s.client.SetEx(ctx, s.keyPrefix+sess.ID(), binary, s.lifetime).Err()
 	if err != nil {
 		return errors.Wrap(err, "set")
 	}
