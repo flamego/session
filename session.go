@@ -20,7 +20,7 @@ type Session interface {
 	// ID returns the session ID.
 	ID() string
 	// RegenerateID regenerates the session ID.
-	RegenerateID() error
+	RegenerateID(w http.ResponseWriter, r *http.Request) error
 	// Get returns the value of given key in the session. It returns nil if no such
 	// key exists.
 	Get(key interface{}) interface{}
@@ -164,7 +164,13 @@ func Sessioner(opts ...Options) flamego.Handler {
 	opt = parseOptions(opt)
 	ctx := context.Background()
 
-	store, err := opt.Initer(ctx, opt.Config)
+	store, err := opt.Initer(
+		ctx,
+		opt.Config,
+		IDWriter(func(w http.ResponseWriter, r *http.Request, sid string) {
+			opt.WriteIDFunc(w, r, sid, true)
+		}),
+	)
 	if err != nil {
 		panic("session: " + err.Error())
 	}
@@ -182,7 +188,7 @@ func Sessioner(opts ...Options) flamego.Handler {
 			}
 			panic("session: load: " + err.Error())
 		}
-		sid = sess.ID()
+		opt.WriteIDFunc(c.ResponseWriter(), c.Request().Request, sess.ID(), created)
 
 		flash := sess.Get(flashKey)
 		if flash != nil {
@@ -198,12 +204,6 @@ func Sessioner(opts ...Options) flamego.Handler {
 		} else {
 			err = store.Touch(c.Request().Context(), sess.ID())
 		}
-
-		// We should only write the session ID after session has been saved in case of
-		// changing the session ID.
-		sidChanged := sess.ID() != sid
-		opt.WriteIDFunc(c.ResponseWriter(), c.Request().Request, sess.ID(), created || sidChanged)
-
 		if err != nil && !errors.Is(err, context.Canceled) {
 			panic("session: save: " + err.Error())
 		}

@@ -91,6 +91,7 @@ func TestFileStore_GC(t *testing.T) {
 			RootDir:  filepath.Join(os.TempDir(), "sessions"),
 			Lifetime: time.Second,
 		},
+		IDWriter(func(http.ResponseWriter, *http.Request, string) {}),
 	)
 	require.Nil(t, err)
 
@@ -137,6 +138,7 @@ func TestFileStore_Touch(t *testing.T) {
 			RootDir:  filepath.Join(os.TempDir(), "sessions"),
 			Lifetime: time.Second,
 		},
+		IDWriter(func(http.ResponseWriter, *http.Request, string) {}),
 	)
 	require.Nil(t, err)
 

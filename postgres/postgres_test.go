@@ -185,6 +185,7 @@ func TestPostgresStore_GC(t *testing.T) {
 			Lifetime:  time.Second,
 			InitTable: true,
 		},
+		session.IDWriter(func(http.ResponseWriter, *http.Request, string) {}),
 	)
 	require.Nil(t, err)
 
@@ -237,6 +238,7 @@ func TestPostgresStore_Touch(t *testing.T) {
 			Lifetime:  time.Second,
 			InitTable: true,
 		},
+		session.IDWriter(func(http.ResponseWriter, *http.Request, string) {}),
 	)
 	require.Nil(t, err)
 

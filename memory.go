@@ -9,6 +9,8 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 var _ Session = (*memorySession)(nil)
@@ -24,9 +26,9 @@ type memorySession struct {
 }
 
 // newMemorySession returns a new memory session with given session ID.
-func newMemorySession(sid string) *memorySession {
+func newMemorySession(sid string, idWriter IDWriter) *memorySession {
 	return &memorySession{
-		BaseSession: NewBaseSession(sid, nil),
+		BaseSession: NewBaseSession(sid, nil, idWriter),
 	}
 }
 
@@ -52,15 +54,18 @@ type memoryStore struct {
 	lock  sync.RWMutex              // The mutex to guard accesses to the heap and index
 	heap  []*memorySession          // The heap to be managed by operations of heap.Interface
 	index map[string]*memorySession // The index to be managed by operations of heap.Interface
+
+	idWriter IDWriter
 }
 
 // newMemoryStore returns a new memory session store based on given
 // configuration.
-func newMemoryStore(cfg MemoryConfig) *memoryStore {
+func newMemoryStore(cfg MemoryConfig, idWriter IDWriter) *memoryStore {
 	return &memoryStore{
 		nowFunc:  cfg.nowFunc,
 		lifetime: cfg.Lifetime,
 		index:    make(map[string]*memorySession),
+		idWriter: idWriter,
 	}
 }
 
@@ -136,7 +141,7 @@ func (s *memoryStore) Read(_ context.Context, sid string) (Session, error) {
 		return sess, nil
 	}
 
-	sess = newMemorySession(sid)
+	sess = newMemorySession(sid, s.idWriter)
 	sess.SetLastAccessedAt(s.nowFunc())
 	heap.Push(s, sess)
 	return sess, nil
@@ -219,11 +224,17 @@ type MemoryConfig struct {
 func MemoryIniter() Initer {
 	return func(_ context.Context, args ...interface{}) (Store, error) {
 		var cfg *MemoryConfig
+		var idWriter IDWriter
 		for i := range args {
 			switch v := args[i].(type) {
 			case MemoryConfig:
 				cfg = &v
+			case IDWriter:
+				idWriter = v
 			}
+		}
+		if idWriter == nil {
+			return nil, errors.New("IDWriter not given")
 		}
 
 		if cfg == nil {
@@ -237,6 +248,6 @@ func MemoryIniter() Initer {
 			cfg.Lifetime = 3600 * time.Second
 		}
 
-		return newMemoryStore(*cfg), nil
+		return newMemoryStore(*cfg, idWriter), nil
 	}
 }

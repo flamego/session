@@ -24,12 +24,14 @@ type mysqlStore struct {
 	lifetime time.Duration    // The duration to have no access to a session before being recycled
 	db       *sql.DB          // The database connection
 	table    string           // The database table for storing session data
-	encoder  session.Encoder  // The encoder to encode the session data before saving
-	decoder  session.Decoder  // The decoder to decode binary to session data after reading
+
+	encoder  session.Encoder
+	decoder  session.Decoder
+	idWriter session.IDWriter
 }
 
 // newMySQLStore returns a new MySQL session store based on given configuration.
-func newMySQLStore(cfg Config) *mysqlStore {
+func newMySQLStore(cfg Config, idWriter session.IDWriter) *mysqlStore {
 	return &mysqlStore{
 		nowFunc:  cfg.nowFunc,
 		lifetime: cfg.Lifetime,
@@ -37,6 +39,7 @@ func newMySQLStore(cfg Config) *mysqlStore {
 		table:    cfg.Table,
 		encoder:  cfg.Encoder,
 		decoder:  cfg.Decoder,
+		idWriter: idWriter,
 	}
 }
 
@@ -67,19 +70,19 @@ func (s *mysqlStore) Read(ctx context.Context, sid string) (session.Session, err
 	if err == nil {
 		// Discard existing data if it's expired
 		if !s.nowFunc().Before(expiredAt.Add(s.lifetime)) {
-			return session.NewBaseSession(sid, s.encoder), nil
+			return session.NewBaseSession(sid, s.encoder, s.idWriter), nil
 		}
 
 		data, err := s.decoder(binary)
 		if err != nil {
 			return nil, errors.Wrap(err, "decode")
 		}
-		return session.NewBaseSessionWithData(sid, s.encoder, data), nil
+		return session.NewBaseSessionWithData(sid, s.encoder, s.idWriter, data), nil
 	} else if err != sql.ErrNoRows {
 		return nil, errors.Wrap(err, "select")
 	}
 
-	return session.NewBaseSession(sid, s.encoder), nil
+	return session.NewBaseSession(sid, s.encoder, s.idWriter), nil
 }
 
 func (s *mysqlStore) Destroy(ctx context.Context, sid string) error {
@@ -158,11 +161,17 @@ type Config struct {
 func Initer() session.Initer {
 	return func(ctx context.Context, args ...interface{}) (session.Store, error) {
 		var cfg *Config
+		var idWriter session.IDWriter
 		for i := range args {
 			switch v := args[i].(type) {
 			case Config:
 				cfg = &v
+			case session.IDWriter:
+				idWriter = v
 			}
+		}
+		if idWriter == nil {
+			return nil, errors.New("IDWriter not given")
 		}
 
 		if cfg == nil {
@@ -212,6 +221,6 @@ CREATE TABLE IF NOT EXISTS sessions (
 			cfg.Decoder = session.GobDecoder
 		}
 
-		return newMySQLStore(*cfg), nil
+		return newMySQLStore(*cfg, idWriter), nil
 	}
 }

@@ -26,9 +26,10 @@ func TestSessioner(t *testing.T) {
 		_ = store.GC(c.Request().Context())
 		return session.ID()
 	})
-	f.Get("/regenerate", func(session Session) {
-		err := session.RegenerateID()
+	f.Get("/regenerate", func(w http.ResponseWriter, r *http.Request, session Session) string {
+		err := session.RegenerateID(w, r)
 		require.NoError(t, err)
+		return "something in the response body"
 	})
 
 	resp := httptest.NewRecorder()
@@ -112,7 +113,7 @@ func (s *noopStore) Exist(context.Context, string) bool {
 }
 
 func (s *noopStore) Read(_ context.Context, sid string) (Session, error) {
-	return newMemorySession(sid), nil
+	return newMemorySession(sid, nil), nil
 }
 
 func (s *noopStore) Destroy(context.Context, string) error {

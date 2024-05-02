@@ -144,6 +144,7 @@ func TestSQLiteStore_GC(t *testing.T) {
 			Lifetime:  time.Second,
 			InitTable: true,
 		},
+		session.IDWriter(func(http.ResponseWriter, *http.Request, string) {}),
 	)
 	require.Nil(t, err)
 
@@ -198,6 +199,7 @@ func TestSQLiteStore_Touch(t *testing.T) {
 			Lifetime:  time.Second,
 			InitTable: true,
 		},
+		session.IDWriter(func(http.ResponseWriter, *http.Request, string) {}),
 	)
 	require.Nil(t, err)
 
