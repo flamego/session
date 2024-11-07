@@ -1,6 +1,8 @@
 module github.com/flamego/session
 
-go 1.18
+go 1.21
+
+toolchain go1.23.2
 
 require (
 	github.com/flamego/flamego v1.9.4
