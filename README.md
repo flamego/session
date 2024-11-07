@@ -8,8 +8,6 @@ Package session is a middleware that provides the session management for [Flameg
 
 ## Installation
 
-The minimum requirement of Go is **1.18**.
-
 	go get github.com/flamego/session
 
 ## Getting started
