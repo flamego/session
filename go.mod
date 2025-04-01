@@ -2,12 +2,10 @@ module github.com/flamego/session
 
 go 1.21
 
-toolchain go1.23.2
-
 require (
 	github.com/flamego/flamego v1.9.5
 	github.com/go-sql-driver/mysql v1.9.0
-	github.com/jackc/pgx/v5 v5.7.2
+	github.com/jackc/pgx/v5 v5.7.4
 	github.com/pkg/errors v0.9.1
 	github.com/redis/go-redis/v9 v9.7.1
 	github.com/stretchr/testify v1.10.0
