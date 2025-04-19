@@ -24,7 +24,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v7
         with:
           version: latest
           args: --timeout=30m
@@ -38,7 +38,7 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Install Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
       - name: Checkout code
@@ -67,7 +67,7 @@ jobs:
           - 5432:5432
     steps:
       - name: Install Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
       - name: Checkout code
@@ -100,7 +100,7 @@ jobs:
           - 6379:6379
     steps:
       - name: Install Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
       - name: Checkout code
@@ -122,7 +122,7 @@ jobs:
       - name: Start MySQL server
         run: sudo systemctl start mysql
       - name: Install Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
       - name: Checkout code
@@ -157,7 +157,7 @@ jobs:
           - 27017:27017
     steps:
       - name: Install Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
       - name: Checkout code
@@ -176,7 +176,7 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Install Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
       - name: Checkout code
