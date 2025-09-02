@@ -8,7 +8,7 @@ require (
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/pkg/errors v0.9.1
 	github.com/redis/go-redis/v9 v9.12.1
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	go.mongodb.org/mongo-driver v1.17.4
 	modernc.org/sqlite v1.38.2
 )
