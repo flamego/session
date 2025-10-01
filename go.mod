@@ -10,7 +10,7 @@ require (
 	github.com/redis/go-redis/v9 v9.12.1
 	github.com/stretchr/testify v1.11.1
 	go.mongodb.org/mongo-driver v1.17.4
-	modernc.org/sqlite v1.38.2
+	modernc.org/sqlite v1.39.0
 )
 
 require (
