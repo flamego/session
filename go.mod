@@ -5,7 +5,7 @@ go 1.24
 require (
 	github.com/flamego/flamego v1.9.7
 	github.com/go-sql-driver/mysql v1.9.3
-	github.com/jackc/pgx/v5 v5.7.5
+	github.com/jackc/pgx/v5 v5.7.6
 	github.com/pkg/errors v0.9.1
 	github.com/redis/go-redis/v9 v9.12.1
 	github.com/stretchr/testify v1.11.1
