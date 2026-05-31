@@ -1,6 +1,6 @@
 module github.com/flamego/session
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/flamego/flamego v1.9.7
