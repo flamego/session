@@ -128,6 +128,10 @@ func (s *fileStore) Save(_ context.Context, sess Session) error {
 	}
 
 	filename := s.filename(sess.ID())
+	err = os.MkdirAll(filepath.Dir(filename), 0700)
+	if err != nil {
+		return errors.Wrap(err, "create parent directory")
+	}
 	err = os.WriteFile(filename, binary, 0600)
 	if err != nil {
 		return errors.Wrap(err, "write file")
