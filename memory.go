@@ -174,7 +174,32 @@ func (s *memoryStore) Touch(_ context.Context, sid string) error {
 	return nil
 }
 
-func (s *memoryStore) Save(context.Context, Session) error { return nil }
+func (s *memoryStore) Save(_ context.Context, sess Session) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	ms, ok := sess.(*memorySession)
+	if !ok {
+		return nil
+	}
+
+	// Fast path: the session is already indexed under its current ID, so its data
+	// is live in the store and there is nothing to persist.
+	if indexed, ok := s.index[ms.sid]; ok && indexed == ms {
+		return nil
+	}
+
+	// The session ID changed since it was read (RegenerateID), or the session was
+	// destroyed during the request. Drop any stale index entry that still points
+	// at this session object, then re-index it under its current ID so a later
+	// Read can find it. Without this, a rotated session is orphaned and lost.
+	if ms.index >= 0 && ms.index < len(s.heap) && s.heap[ms.index] == ms {
+		heap.Remove(s, ms.index)
+	}
+	ms.SetLastAccessedAt(s.nowFunc())
+	heap.Push(s, ms)
+	return nil
+}
 
 func (s *memoryStore) GC(ctx context.Context) error {
 	// Removing expired sessions from top of the heap until there is no more expired
