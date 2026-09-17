@@ -178,10 +178,7 @@ func (s *memoryStore) Save(_ context.Context, sess Session) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	ms, ok := sess.(*memorySession)
-	if !ok {
-		return nil
-	}
+	ms := sess.(*memorySession)
 
 	// Fast path: the session is already indexed under its current ID, so there is
 	// nothing to persist.
