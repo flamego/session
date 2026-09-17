@@ -190,11 +190,17 @@ func (s *memoryStore) Save(_ context.Context, sess Session) error {
 	}
 
 	// The session ID changed since it was read (RegenerateID), or the session was
-	// destroyed during the request. Drop any stale index entry that still points
-	// at this session object, then re-index it under its current ID so a later
-	// Read can find it. Without this, a rotated session is orphaned and lost.
+	// destroyed during the request. Remove it from the heap if it's still there,
+	// drop any stale index entry that points at this session object, then re-index
+	// it under its current ID so a later Read can find it. Without this, a rotated
+	// session is orphaned and lost, and the old ID would remain valid.
 	if ms.index >= 0 && ms.index < len(s.heap) && s.heap[ms.index] == ms {
 		heap.Remove(s, ms.index)
+	}
+	for sid, indexed := range s.index {
+		if indexed == ms {
+			delete(s.index, sid)
+		}
 	}
 	ms.SetLastAccessedAt(s.nowFunc())
 	heap.Push(s, ms)
