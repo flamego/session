@@ -76,7 +76,6 @@ func (s *BaseSession) RegenerateID(w http.ResponseWriter, r *http.Request) error
 
 	s.idWriter(w, r, sid)
 	s.sid = sid
-	s.changed = true
 	return nil
 }
 
