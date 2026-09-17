@@ -174,7 +174,36 @@ func (s *memoryStore) Touch(_ context.Context, sid string) error {
 	return nil
 }
 
-func (s *memoryStore) Save(context.Context, Session) error { return nil }
+func (s *memoryStore) Save(_ context.Context, sess Session) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	ms := sess.(*memorySession)
+
+	// Fast path: the session is already indexed under its current ID, so there is
+	// nothing to persist.
+	if indexed, ok := s.index[ms.sid]; ok && indexed == ms {
+		return nil
+	}
+
+	// The session ID may have changed since it was read (RegenerateID). Drop any
+	// stale index entry pointing at this session object and re-index it under its
+	// current ID so a later Read can find it. The scan is O(len(s.index)) and only
+	// runs on this path.
+	for sid, indexed := range s.index {
+		if indexed == ms {
+			delete(s.index, sid)
+		}
+	}
+
+	if ms.index >= 0 && s.heap[ms.index] == ms {
+		s.index[ms.sid] = ms
+		return nil
+	}
+
+	heap.Push(s, ms)
+	return nil
+}
 
 func (s *memoryStore) GC(ctx context.Context) error {
 	// Removing expired sessions from top of the heap until there is no more expired
