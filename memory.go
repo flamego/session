@@ -196,7 +196,7 @@ func (s *memoryStore) Save(_ context.Context, sess Session) error {
 		}
 	}
 
-	if ms.index >= 0 && ms.index < len(s.heap) && s.heap[ms.index] == ms {
+	if ms.index >= 0 && s.heap[ms.index] == ms {
 		s.index[ms.sid] = ms
 		return nil
 	}
