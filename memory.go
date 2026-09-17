@@ -183,18 +183,16 @@ func (s *memoryStore) Save(_ context.Context, sess Session) error {
 		return nil
 	}
 
-	// Fast path: the session is already indexed under its current ID, so its data
-	// is live in the store and there is nothing to persist.
+	// Fast path: the session is already indexed under its current ID, so there is
+	// nothing to persist.
 	if indexed, ok := s.index[ms.sid]; ok && indexed == ms {
 		return nil
 	}
 
-	// The session ID changed since it was read (RegenerateID), so the session may
-	// still be indexed under its old ID. Drop any stale index entry that points
-	// at this session object, then re-index it under its current ID so a later
-	// Read can find it. Without this, a rotated session is orphaned and lost.
-	// The scan is O(len(s.index)), which is acceptable for an in-memory store;
-	// it only runs when the session is not indexed under its current ID.
+	// The session ID may have changed since it was read (RegenerateID). Drop any
+	// stale index entry pointing at this session object and re-index it under its
+	// current ID so a later Read can find it. The scan is O(len(s.index)) and only
+	// runs on this path.
 	for sid, indexed := range s.index {
 		if indexed == ms {
 			delete(s.index, sid)
@@ -202,7 +200,6 @@ func (s *memoryStore) Save(_ context.Context, sess Session) error {
 	}
 
 	if ms.index >= 0 && ms.index < len(s.heap) && s.heap[ms.index] == ms {
-		// The session is still in the heap, so only the index key needs updating.
 		s.index[ms.sid] = ms
 		return nil
 	}
