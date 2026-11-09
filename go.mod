@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/flamego/flamego v1.12.0
-	github.com/go-sql-driver/mysql v1.9.3
+	github.com/go-sql-driver/mysql v1.10.1
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/pkg/errors v0.9.1
 	github.com/redis/go-redis/v9 v9.20.0
@@ -16,7 +16,7 @@ require (
 require (
 	charm.land/lipgloss/v2 v2.0.1 // indirect
 	charm.land/log/v2 v2.0.0 // indirect
-	filippo.io/edwards25519 v1.1.0 // indirect
+	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/alecthomas/participle/v2 v2.1.4 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/colorprofile v0.4.2 // indirect
