@@ -30,7 +30,8 @@ type Session interface {
 	SetFlash(val interface{})
 	// Delete deletes a key from the session.
 	Delete(key interface{})
-	// Flush wipes out all existing data in the session.
+	// Flush wipes out all existing data in the session, except the deadline set
+	// by SetDeadline.
 	Flush()
 	// Encode encodes session data to binary.
 	Encode() ([]byte, error)
@@ -89,10 +90,10 @@ const deadlineKey = "flamego::session::deadline"
 
 // SetDeadline sets an absolute deadline for the session, e.g. when the user is
 // authenticated. Unlike the idle lifetime of the session store, the deadline is
-// not extended by any later request. Once the deadline is reached, the
-// session.Sessioner middleware destroys the session and starts a new one with a
-// new ID, no matter whether the client still sends the old ID. A zero time
-// removes the deadline.
+// not extended by any later request, and Flush keeps it. Once the deadline is
+// reached, the session.Sessioner middleware destroys the session and starts a
+// new one with a new ID, no matter whether the client still sends the old ID. A
+// zero time removes the deadline.
 //
 // The deadline is stored with the session data, so it is enforced across
 // restarts and multiple instances when using a persistent session store. It does
@@ -103,17 +104,33 @@ func SetDeadline(s Session, t time.Time) {
 		s.Delete(deadlineKey)
 		return
 	}
-	s.Set(deadlineKey, t.UnixNano())
+	// A string survives any Encoder and Decoder, and covers years 0 to 9999.
+	s.Set(deadlineKey, t.UTC().Format(time.RFC3339Nano))
 }
 
 // Deadline returns the absolute deadline of the session set by SetDeadline, and
 // ok is false when no deadline is set.
 func Deadline(s Session) (deadline time.Time, ok bool) {
-	nsec, ok := s.Get(deadlineKey).(int64)
+	v, ok := s.Get(deadlineKey).(string)
 	if !ok {
 		return time.Time{}, false
 	}
-	return time.Unix(0, nsec), true
+	deadline, err := time.Parse(time.RFC3339Nano, v)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return deadline, true
+}
+
+// deadlinePassed returns true if the session has a deadline that is not after
+// now. A deadline that cannot be read counts as passed, so that a session is
+// never kept beyond its deadline because of how it was stored.
+func deadlinePassed(s Session, now time.Time) bool {
+	if s.Get(deadlineKey) == nil {
+		return false
+	}
+	deadline, ok := Deadline(s)
+	return !ok || !now.Before(deadline)
 }
 
 const minimumSIDLength = 3
@@ -227,7 +244,7 @@ func Sessioner(opts ...Options) flamego.Handler {
 		}
 
 		// Replace the session with a new one when its deadline has been reached.
-		if deadline, ok := Deadline(sess); ok && !opt.nowFunc().Before(deadline) {
+		if deadlinePassed(sess, opt.nowFunc()) {
 			err = store.Destroy(c.Request().Context(), sess.ID())
 			if err == nil {
 				sess, created, err = mgr.load(c.Request().Request, "", opt.IDLength)
@@ -251,7 +268,12 @@ func Sessioner(opts ...Options) flamego.Handler {
 		c.MapTo(flash, (*Flash)(nil))
 		c.Next()
 
-		if sess.HasChanged() {
+		// Do not save or touch a session whose deadline has passed during the
+		// request, which would otherwise write it back after another request has
+		// destroyed it, or extend its idle lifetime.
+		if deadlinePassed(sess, opt.nowFunc()) {
+			err = store.Destroy(c.Request().Context(), sess.ID())
+		} else if sess.HasChanged() {
 			err = store.Save(c.Request().Context(), sess)
 		} else {
 			err = store.Touch(c.Request().Context(), sess.ID())

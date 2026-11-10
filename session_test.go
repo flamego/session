@@ -243,44 +243,106 @@ func TestSessioner_Deadline(t *testing.T) {
 			s.Set("visited_at", now.UnixNano())
 			return show(s)
 		})
+		f.Get("/flush", func(s Session) string {
+			s.Flush()
+			s.Set("user_id", 1)
+			return show(s)
+		})
+		f.Get("/slow", func(c flamego.Context, s Session, store Store) {
+			s.Set("visited_at", now.UnixNano())
+			// The deadline passes while handling the request, and a concurrent request
+			// has destroyed the session already.
+			now = deadline
+			require.NoError(t, store.Destroy(c.Request().Context(), s.ID()))
+		})
 		f.Get("/", func(c flamego.Context, s Session, store Store) string {
 			sid, _ := c.Request().Cookie("flamego_session")
 			return fmt.Sprintf("%s %v", show(s), store.Exist(c.Request().Context(), sid.Value))
 		})
 		return f
 	}
-	request := func(f *flamego.Flame, path, cookie string) *httptest.ResponseRecorder {
+	request := func(path, cookie string) *httptest.ResponseRecorder {
 		resp := httptest.NewRecorder()
 		req, err := http.NewRequest(http.MethodGet, path, nil)
 		require.NoError(t, err)
 		req.Header.Set("Cookie", cookie)
-		f.ServeHTTP(resp, req)
+		newApp().ServeHTTP(resp, req)
 		require.Equal(t, http.StatusOK, resp.Code)
 		return resp
 	}
+	signIn := func() (cookie, body string) {
+		now = signedInAt
+		resp := request("/sign-in", "")
+		body = resp.Body.String()
+		assert.Equal(t, "1 true 2026-09-21T00:00:00Z", body[strings.Index(body, " ")+1:])
+		return resp.Header().Get("Set-Cookie"), body
+	}
+	assertReplaced := func(t *testing.T, resp *httptest.ResponseRecorder, cookie string) {
+		t.Helper()
+		newCookie := resp.Header().Get("Set-Cookie")
+		assert.NotEmpty(t, newCookie)
+		assert.NotEqual(t, cookie, newCookie)
+		sid := resp.Body.String()[:16]
+		assert.NotEqual(t, cookie[len("flamego_session="):][:16], sid)
+		assert.Equal(t, sid+" <nil> false 0001-01-01T00:00:00Z false", resp.Body.String())
+	}
 
-	resp := request(newApp(), "/sign-in", "")
-	cookie := resp.Header().Get("Set-Cookie")
-	signedIn := resp.Body.String()
-	assert.Equal(t, "1 true 2026-09-21T00:00:00Z", signedIn[strings.Index(signedIn, " ")+1:])
+	t.Run("before and at the deadline", func(t *testing.T) {
+		cookie, signedIn := signIn()
 
-	// Requests before the deadline, saving data or not, keep the session and do
-	// not move the deadline.
-	now = deadline.Add(-time.Nanosecond)
-	resp = request(newApp(), "/visit", cookie)
-	assert.Equal(t, signedIn, resp.Body.String())
-	assert.Empty(t, resp.Header().Get("Set-Cookie"))
-	resp = request(newApp(), "/", cookie)
-	assert.Equal(t, signedIn+" true", resp.Body.String())
+		// Requests before the deadline, saving data or not, keep the session and
+		// do not move the deadline. Flush keeps the deadline.
+		now = deadline.Add(-time.Nanosecond)
+		resp := request("/visit", cookie)
+		assert.Equal(t, signedIn, resp.Body.String())
+		assert.Empty(t, resp.Header().Get("Set-Cookie"))
+		resp = request("/flush", cookie)
+		assert.Equal(t, signedIn, resp.Body.String())
+		resp = request("/", cookie)
+		assert.Equal(t, signedIn+" true", resp.Body.String())
 
-	// At the deadline, the old session is destroyed and replaced by a new one even
-	// though the client still sends the old session ID.
-	now = deadline
-	resp = request(newApp(), "/", cookie)
-	newCookie := resp.Header().Get("Set-Cookie")
-	assert.NotEmpty(t, newCookie)
-	assert.NotEqual(t, cookie, newCookie)
-	sid := resp.Body.String()[:16]
-	assert.NotEqual(t, signedIn[:16], sid)
-	assert.Equal(t, sid+" <nil> false 0001-01-01T00:00:00Z false", resp.Body.String())
+		// At the deadline, the old session is destroyed and replaced by a new one
+		// even though the client still sends the old session ID.
+		now = deadline
+		assertReplaced(t, request("/", cookie), cookie)
+	})
+
+	t.Run("deadline passes during the request", func(t *testing.T) {
+		cookie, signedIn := signIn()
+		request("/slow", cookie)
+
+		// Go back in time to see whether the old session was written back.
+		now = signedInAt
+		resp := request("/", cookie)
+		assert.Equal(t, signedIn[:16]+" <nil> false 0001-01-01T00:00:00Z false", resp.Body.String())
+	})
+
+	t.Run("unreadable deadline", func(t *testing.T) {
+		cookie, _ := signIn()
+
+		// For example, a custom Decoder that returns a different type.
+		ctx := context.Background()
+		store, err := FileIniter()(ctx, FileConfig{RootDir: rootDir}, IDWriter(func(http.ResponseWriter, *http.Request, string) {}))
+		require.NoError(t, err)
+		sess, err := store.Read(ctx, cookie[len("flamego_session="):][:16])
+		require.NoError(t, err)
+		sess.Set(deadlineKey, deadline.Add(time.Hour).UnixNano())
+		require.NoError(t, store.Save(ctx, sess))
+
+		assertReplaced(t, request("/", cookie), cookie)
+	})
+}
+
+func TestDeadline(t *testing.T) {
+	// Years outside the range of int64 nanoseconds since the Unix epoch.
+	for _, want := range []time.Time{
+		time.Date(1600, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2300, 1, 1, 0, 0, 0, 1, time.UTC),
+	} {
+		s := NewBaseSession("abc", nil, nil)
+		SetDeadline(s, want)
+		got, ok := Deadline(s)
+		assert.True(t, ok)
+		assert.True(t, want.Equal(got), "want %v, got %v", want, got)
+	}
 }

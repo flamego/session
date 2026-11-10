@@ -110,7 +110,11 @@ func (s *BaseSession) Flush() {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	s.changed = true
-	s.data = make(Data)
+	data := make(Data)
+	if deadline, ok := s.data[deadlineKey]; ok {
+		data[deadlineKey] = deadline
+	}
+	s.data = data
 }
 
 func (s *BaseSession) Encode() ([]byte, error) {
