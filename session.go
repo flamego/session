@@ -81,6 +81,39 @@ type Options struct {
 	// writing to cookie. The `created` argument indicates whether a new session was
 	// created in the session store.
 	WriteIDFunc func(w http.ResponseWriter, r *http.Request, sid string, created bool)
+
+	nowFunc func() time.Time // For tests only
+}
+
+const deadlineKey = "flamego::session::deadline"
+
+// SetDeadline sets an absolute deadline for the session, e.g. when the user is
+// authenticated. Unlike the idle lifetime of the session store, the deadline is
+// not extended by any later request. Once the deadline is reached, the
+// session.Sessioner middleware destroys the session and starts a new one with a
+// new ID, no matter whether the client still sends the old ID. A zero time
+// removes the deadline.
+//
+// The deadline is stored with the session data, so it is enforced across
+// restarts and multiple instances when using a persistent session store. It does
+// not prevent the session from expiring earlier because of the idle lifetime of
+// the session store or the expiry of the cookie.
+func SetDeadline(s Session, t time.Time) {
+	if t.IsZero() {
+		s.Delete(deadlineKey)
+		return
+	}
+	s.Set(deadlineKey, t.UnixNano())
+}
+
+// Deadline returns the absolute deadline of the session set by SetDeadline, and
+// ok is false when no deadline is set.
+func Deadline(s Session) (deadline time.Time, ok bool) {
+	nsec, ok := s.Get(deadlineKey).(int64)
+	if !ok {
+		return time.Time{}, false
+	}
+	return time.Unix(0, nsec), true
 }
 
 const minimumSIDLength = 3
@@ -123,6 +156,10 @@ func Sessioner(opts ...Options) flamego.Handler {
 
 		if opts.GCInterval.Seconds() < 1 {
 			opts.GCInterval = 5 * time.Minute
+		}
+
+		if opts.nowFunc == nil {
+			opts.nowFunc = time.Now
 		}
 
 		if opts.ErrorFunc == nil {
@@ -187,6 +224,21 @@ func Sessioner(opts ...Options) flamego.Handler {
 				return
 			}
 			panic("session: load: " + err.Error())
+		}
+
+		// Replace the session with a new one when its deadline has been reached.
+		if deadline, ok := Deadline(sess); ok && !opt.nowFunc().Before(deadline) {
+			err = store.Destroy(c.Request().Context(), sess.ID())
+			if err == nil {
+				sess, created, err = mgr.load(c.Request().Request, "", opt.IDLength)
+			}
+			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					c.ResponseWriter().WriteHeader(http.StatusUnprocessableEntity)
+					return
+				}
+				panic("session: replace expired: " + err.Error())
+			}
 		}
 		opt.WriteIDFunc(c.ResponseWriter(), c.Request().Request, sess.ID(), created)
 

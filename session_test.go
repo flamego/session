@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -209,4 +211,76 @@ func TestSession_Flash(t *testing.T) {
 	f.ServeHTTP(resp, req)
 
 	assert.Equal(t, "no flash", resp.Body.String())
+}
+
+func TestSessioner_Deadline(t *testing.T) {
+	signedInAt := time.Date(2026, 9, 20, 23, 54, 59, 0, time.UTC)
+	deadline := time.Date(2026, 9, 21, 0, 0, 0, 0, time.UTC)
+	now := signedInAt
+	rootDir := t.TempDir()
+
+	// Each call returns an app with its own session store over the same
+	// directory, which is like a restart or another instance of the application.
+	newApp := func() *flamego.Flame {
+		f := flamego.NewWithLogger(&bytes.Buffer{})
+		f.Use(Sessioner(
+			Options{
+				Initer:  FileIniter(),
+				Config:  FileConfig{RootDir: rootDir},
+				nowFunc: func() time.Time { return now },
+			},
+		))
+		show := func(s Session) string {
+			deadline, ok := Deadline(s)
+			return fmt.Sprintf("%s %v %v %s", s.ID(), s.Get("user_id"), ok, deadline.Format(time.RFC3339Nano))
+		}
+		f.Get("/sign-in", func(s Session) string {
+			s.Set("user_id", 1)
+			SetDeadline(s, deadline)
+			return show(s)
+		})
+		f.Get("/visit", func(s Session) string {
+			s.Set("visited_at", now.UnixNano())
+			return show(s)
+		})
+		f.Get("/", func(c flamego.Context, s Session, store Store) string {
+			sid, _ := c.Request().Cookie("flamego_session")
+			return fmt.Sprintf("%s %v", show(s), store.Exist(c.Request().Context(), sid.Value))
+		})
+		return f
+	}
+	request := func(f *flamego.Flame, path, cookie string) *httptest.ResponseRecorder {
+		resp := httptest.NewRecorder()
+		req, err := http.NewRequest(http.MethodGet, path, nil)
+		require.NoError(t, err)
+		req.Header.Set("Cookie", cookie)
+		f.ServeHTTP(resp, req)
+		require.Equal(t, http.StatusOK, resp.Code)
+		return resp
+	}
+
+	resp := request(newApp(), "/sign-in", "")
+	cookie := resp.Header().Get("Set-Cookie")
+	signedIn := resp.Body.String()
+	assert.Equal(t, "1 true 2026-09-21T00:00:00Z", signedIn[strings.Index(signedIn, " ")+1:])
+
+	// Requests before the deadline, saving data or not, keep the session and do
+	// not move the deadline.
+	now = deadline.Add(-time.Nanosecond)
+	resp = request(newApp(), "/visit", cookie)
+	assert.Equal(t, signedIn, resp.Body.String())
+	assert.Empty(t, resp.Header().Get("Set-Cookie"))
+	resp = request(newApp(), "/", cookie)
+	assert.Equal(t, signedIn+" true", resp.Body.String())
+
+	// At the deadline, the old session is destroyed and replaced by a new one even
+	// though the client still sends the old session ID.
+	now = deadline
+	resp = request(newApp(), "/", cookie)
+	newCookie := resp.Header().Get("Set-Cookie")
+	assert.NotEmpty(t, newCookie)
+	assert.NotEqual(t, cookie, newCookie)
+	sid := resp.Body.String()[:16]
+	assert.NotEqual(t, signedIn[:16], sid)
+	assert.Equal(t, sid+" <nil> false 0001-01-01T00:00:00Z false", resp.Body.String())
 }
