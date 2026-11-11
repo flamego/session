@@ -199,7 +199,7 @@ type FileConfig struct {
 
 // FileIniter returns the Initer for the file session store.
 func FileIniter() Initer {
-	return func(ctx context.Context, args ...interface{}) (Store, error) {
+	return func(ctx context.Context, args ...any) (Store, error) {
 		var cfg *FileConfig
 		var idWriter IDWriter
 		for i := range args {

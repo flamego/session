@@ -95,7 +95,7 @@ func (s *memoryStore) Swap(i, j int) {
 // Push implements `heap.Interface.Push`. It is not concurrent-safe and is the
 // caller's responsibility to ensure they're being guarded by a mutex during any
 // heap operation, i.e. heap.Fix, heap.Remove, heap.Push, heap.Pop.
-func (s *memoryStore) Push(x interface{}) {
+func (s *memoryStore) Push(x any) {
 	n := s.Len()
 	sess := x.(*memorySession)
 	sess.index = n
@@ -106,7 +106,7 @@ func (s *memoryStore) Push(x interface{}) {
 // Pop implements `heap.Interface.Pop`. It is not concurrent-safe and is the
 // caller's responsibility to ensure they're being guarded by a mutex during any
 // heap operation, i.e. heap.Fix, heap.Remove, heap.Push, heap.Pop.
-func (s *memoryStore) Pop() interface{} {
+func (s *memoryStore) Pop() any {
 	n := s.Len()
 	sess := s.heap[n-1]
 
@@ -251,7 +251,7 @@ type MemoryConfig struct {
 
 // MemoryIniter returns the Initer for the memory session store.
 func MemoryIniter() Initer {
-	return func(_ context.Context, args ...interface{}) (Store, error) {
+	return func(_ context.Context, args ...any) (Store, error) {
 		var cfg *MemoryConfig
 		var idWriter IDWriter
 		for i := range args {

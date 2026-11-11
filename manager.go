@@ -35,7 +35,7 @@ type Store interface {
 
 // Initer takes arbitrary number of arguments needed for initialization and
 // returns an initialized session store.
-type Initer func(ctx context.Context, args ...interface{}) (Store, error)
+type Initer func(ctx context.Context, args ...any) (Store, error)
 
 // manager is wrapper for wiring HTTP request and session stores.
 type manager struct {
