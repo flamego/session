@@ -121,13 +121,19 @@ func (s *BaseSession) Flush() {
 func (s *BaseSession) SetDeadline(t time.Time) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	s.changed = true
+	old, ok := s.data[deadlineKey]
 	if t.IsZero() {
-		delete(s.data, deadlineKey)
+		if ok {
+			delete(s.data, deadlineKey)
+			s.changed = true
+		}
 		return
 	}
 	// Covers years 0 to 9999 and needs no gob registration.
-	s.data[deadlineKey] = t.UTC().Format(time.RFC3339Nano)
+	if v := t.UTC().Format(time.RFC3339Nano); old != v {
+		s.data[deadlineKey] = v
+		s.changed = true
+	}
 }
 
 func (s *BaseSession) Deadline() (deadline time.Time, ok bool) {

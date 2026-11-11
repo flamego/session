@@ -345,4 +345,25 @@ func TestDeadline(t *testing.T) {
 		assert.True(t, ok)
 		assert.True(t, want.Equal(got), "want %v, got %v", want, got)
 	}
+
+	// Only an actual change marks the session as changed.
+	s := NewBaseSession("abc", nil, nil)
+	s.SetDeadline(time.Time{})
+	assert.False(t, s.HasChanged())
+
+	deadline := time.Date(2026, 9, 21, 0, 0, 0, 0, time.UTC)
+	newSession := func() *BaseSession {
+		return NewBaseSessionWithData("abc", nil, nil, Data{deadlineKey: "2026-09-21T00:00:00Z"})
+	}
+	s = newSession()
+	s.SetDeadline(deadline.In(time.FixedZone("UTC+8", 8*60*60)))
+	assert.False(t, s.HasChanged())
+	s.SetDeadline(deadline.Add(time.Second))
+	assert.True(t, s.HasChanged())
+
+	s = newSession()
+	s.SetDeadline(time.Time{})
+	assert.True(t, s.HasChanged())
+	_, ok := s.Deadline()
+	assert.False(t, ok)
 }
