@@ -158,7 +158,7 @@ type Config struct {
 
 // Initer returns the session.Initer for the MongoDB session store.
 func Initer() session.Initer {
-	return func(ctx context.Context, args ...interface{}) (session.Store, error) {
+	return func(ctx context.Context, args ...any) (session.Store, error) {
 		var cfg *Config
 		var idWriter session.IDWriter
 		for i := range args {

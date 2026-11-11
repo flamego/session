@@ -143,7 +143,7 @@ func TestSessioner_ContextCancel(t *testing.T) {
 	f := flamego.NewWithLogger(&bytes.Buffer{})
 	f.Use(Sessioner(
 		Options{
-			Initer: func(context.Context, ...interface{}) (Store, error) {
+			Initer: func(context.Context, ...any) (Store, error) {
 				return &noopStore{}, nil
 			},
 		},

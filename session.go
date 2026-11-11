@@ -23,13 +23,13 @@ type Session interface {
 	RegenerateID(w http.ResponseWriter, r *http.Request) error
 	// Get returns the value of given key in the session. It returns nil if no such
 	// key exists.
-	Get(key interface{}) interface{}
+	Get(key any) any
 	// Set sets the value of given key in the session.
-	Set(key, val interface{})
+	Set(key, val any)
 	// SetFlash sets the flash to be the given value in the session.
-	SetFlash(val interface{})
+	SetFlash(val any)
 	// Delete deletes a key from the session.
-	Delete(key interface{})
+	Delete(key any)
 	// Flush wipes out all existing data in the session, except the deadline.
 	Flush()
 	// SetDeadline sets an absolute deadline that, unlike the idle lifetime, no
@@ -71,7 +71,7 @@ type Options struct {
 	Initer Initer
 	// Config is the configuration object to be passed to the Initer for the session
 	// store.
-	Config interface{}
+	Config any
 	// Cookie is a set of options for setting HTTP cookies.
 	Cookie CookieOptions
 	// IDLength specifies the length of session IDs. Default is 16.

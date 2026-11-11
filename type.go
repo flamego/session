@@ -15,7 +15,7 @@ import (
 )
 
 // Data is the data structure for storing session data.
-type Data map[interface{}]interface{}
+type Data map[any]any
 
 // Encoder is an encoder to encode session data to binary.
 type Encoder func(Data) ([]byte, error)
@@ -80,27 +80,27 @@ func (s *BaseSession) RegenerateID(w http.ResponseWriter, r *http.Request) error
 	return nil
 }
 
-func (s *BaseSession) Get(key interface{}) interface{} {
+func (s *BaseSession) Get(key any) any {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 	return s.data[key]
 }
 
-func (s *BaseSession) Set(key, val interface{}) {
+func (s *BaseSession) Set(key, val any) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	s.changed = true
 	s.data[key] = val
 }
 
-func (s *BaseSession) SetFlash(val interface{}) {
+func (s *BaseSession) SetFlash(val any) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	s.changed = true
 	s.data[flashKey] = val
 }
 
-func (s *BaseSession) Delete(key interface{}) {
+func (s *BaseSession) Delete(key any) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	s.changed = true
@@ -181,7 +181,7 @@ func GobDecoder(binary []byte) (Data, error) {
 
 // Flash is anything that gets retrieved and deleted as soon as the next request
 // happens.
-type Flash interface{}
+type Flash any
 
 const (
 	flashKey    = "flamego::session::flash"
