@@ -223,7 +223,7 @@ func Sessioner(opts ...Options) flamego.Handler {
 					c.ResponseWriter().WriteHeader(http.StatusUnprocessableEntity)
 					return
 				}
-				panic("session: replace expired: " + err.Error())
+				panic("session: replace deadline passed: " + err.Error())
 			}
 		}
 		opt.WriteIDFunc(c.ResponseWriter(), c.Request().Request, sess.ID(), created)
@@ -237,7 +237,9 @@ func Sessioner(opts ...Options) flamego.Handler {
 		c.MapTo(flash, (*Flash)(nil))
 		c.Next()
 
-		// Saving or touching would revive or extend a session past its deadline.
+		// If the deadline passed during the request, destroy the session: Save
+		// could write it back after another request destroyed it, and Touch would
+		// extend its idle lifetime.
 		if deadlinePassed(sess, opt.nowFunc()) {
 			err = store.Destroy(c.Request().Context(), sess.ID())
 		} else if sess.HasChanged() {
