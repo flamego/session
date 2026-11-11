@@ -14,7 +14,7 @@ import (
 )
 
 func TestIsValidSessionID(t *testing.T) {
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		s, err := randomChars(16)
 		require.Nil(t, err)
 		assert.True(t, isValidSessionID(s, 16))
