@@ -30,8 +30,15 @@ type Session interface {
 	SetFlash(val interface{})
 	// Delete deletes a key from the session.
 	Delete(key interface{})
-	// Flush wipes out all existing data in the session.
+	// Flush wipes out all existing data in the session, except the deadline.
 	Flush()
+	// SetDeadline sets an absolute deadline that, unlike the idle lifetime, no
+	// request extends. A zero time removes it. A request starting at or after the
+	// deadline gets a new session with a new ID.
+	SetDeadline(t time.Time)
+	// Deadline returns the deadline, and ok is false when none is set or it
+	// cannot be read. Sessioner treats an unreadable deadline as passed.
+	Deadline() (deadline time.Time, ok bool)
 	// Encode encodes session data to binary.
 	Encode() ([]byte, error)
 	// HasChanged returns whether the session has changed.
@@ -81,6 +88,18 @@ type Options struct {
 	// writing to cookie. The `created` argument indicates whether a new session was
 	// created in the session store.
 	WriteIDFunc func(w http.ResponseWriter, r *http.Request, sid string, created bool)
+
+	nowFunc func() time.Time // For tests only
+}
+
+// deadlinePassed returns true if the session has a deadline that is not after
+// now or cannot be read.
+func deadlinePassed(s Session, now time.Time) bool {
+	if s.Get(deadlineKey) == nil {
+		return false
+	}
+	deadline, ok := s.Deadline()
+	return !ok || !now.Before(deadline)
 }
 
 const minimumSIDLength = 3
@@ -123,6 +142,10 @@ func Sessioner(opts ...Options) flamego.Handler {
 
 		if opts.GCInterval.Seconds() < 1 {
 			opts.GCInterval = 5 * time.Minute
+		}
+
+		if opts.nowFunc == nil {
+			opts.nowFunc = time.Now
 		}
 
 		if opts.ErrorFunc == nil {
@@ -187,6 +210,20 @@ func Sessioner(opts ...Options) flamego.Handler {
 				return
 			}
 			panic("session: load: " + err.Error())
+		}
+
+		if deadlinePassed(sess, opt.nowFunc()) {
+			err = store.Destroy(c.Request().Context(), sess.ID())
+			if err == nil {
+				sess, created, err = mgr.load(c.Request().Request, "", opt.IDLength)
+			}
+			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					c.ResponseWriter().WriteHeader(http.StatusUnprocessableEntity)
+					return
+				}
+				panic("session: replace deadline passed: " + err.Error())
+			}
 		}
 		opt.WriteIDFunc(c.ResponseWriter(), c.Request().Request, sess.ID(), created)
 

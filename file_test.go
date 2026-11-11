@@ -80,6 +80,15 @@ func TestFileStore(t *testing.T) {
 	req.Header.Set("Cookie", cookie)
 	f.ServeHTTP(resp, req)
 	assert.Equal(t, http.StatusOK, resp.Code)
+
+	// Destroying a session that no longer exists is not an error.
+	resp = httptest.NewRecorder()
+	req, err = http.NewRequest("GET", "/destroy", nil)
+	require.Nil(t, err)
+
+	req.Header.Set("Cookie", cookie)
+	f.ServeHTTP(resp, req)
+	assert.Equal(t, http.StatusOK, resp.Code)
 }
 
 func TestFileStore_GC(t *testing.T) {

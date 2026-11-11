@@ -101,7 +101,13 @@ func (s *fileStore) Destroy(_ context.Context, sid string) error {
 	if len(sid) < minimumSIDLength {
 		return nil
 	}
-	return os.Remove(s.filename(sid))
+
+	// Like other stores, destroying a missing session is not an error.
+	err := os.Remove(s.filename(sid))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	return err
 }
 
 func (s *fileStore) Touch(_ context.Context, sid string) error {

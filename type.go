@@ -9,6 +9,7 @@ import (
 	"encoding/gob"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -110,7 +111,43 @@ func (s *BaseSession) Flush() {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	s.changed = true
-	s.data = make(Data)
+	data := make(Data)
+	if deadline, ok := s.data[deadlineKey]; ok {
+		data[deadlineKey] = deadline
+	}
+	s.data = data
+}
+
+func (s *BaseSession) SetDeadline(t time.Time) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	old, ok := s.data[deadlineKey]
+	if t.IsZero() {
+		if ok {
+			delete(s.data, deadlineKey)
+			s.changed = true
+		}
+		return
+	}
+	// Covers years 0 to 9999 and needs no gob registration.
+	if v := t.UTC().Format(time.RFC3339Nano); old != v {
+		s.data[deadlineKey] = v
+		s.changed = true
+	}
+}
+
+func (s *BaseSession) Deadline() (deadline time.Time, ok bool) {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+	v, ok := s.data[deadlineKey].(string)
+	if !ok {
+		return time.Time{}, false
+	}
+	deadline, err := time.Parse(time.RFC3339Nano, v)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return deadline, true
 }
 
 func (s *BaseSession) Encode() ([]byte, error) {
@@ -146,4 +183,7 @@ func GobDecoder(binary []byte) (Data, error) {
 // happens.
 type Flash interface{}
 
-const flashKey = "flamego::session::flash"
+const (
+	flashKey    = "flamego::session::flash"
+	deadlineKey = "flamego::session::deadline"
+)
