@@ -308,13 +308,9 @@ func TestSessioner_Deadline(t *testing.T) {
 	})
 
 	t.Run("deadline passes during the request", func(t *testing.T) {
-		cookie, signedIn := signIn()
+		cookie, _ := signIn()
 		request("/slow", cookie)
-
-		// Go back in time to see whether the old session was written back.
-		now = signedInAt
-		resp := request("/", cookie)
-		assert.Equal(t, signedIn[:16]+" <nil> false 0001-01-01T00:00:00Z false", resp.Body.String())
+		assertReplaced(t, request("/", cookie), cookie)
 	})
 
 	t.Run("unreadable deadline", func(t *testing.T) {

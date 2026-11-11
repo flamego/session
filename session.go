@@ -34,8 +34,7 @@ type Session interface {
 	Flush()
 	// SetDeadline sets an absolute deadline that, unlike the idle lifetime, no
 	// request extends. A zero time removes it. A request starting at or after the
-	// deadline gets a new session with a new ID, and a session whose deadline
-	// passes during a request is destroyed instead of saved.
+	// deadline gets a new session with a new ID.
 	SetDeadline(t time.Time)
 	// Deadline returns the deadline, and ok is false when none is set or it
 	// cannot be read. Sessioner treats an unreadable deadline as passed.
@@ -237,9 +236,7 @@ func Sessioner(opts ...Options) flamego.Handler {
 		c.MapTo(flash, (*Flash)(nil))
 		c.Next()
 
-		if deadlinePassed(sess, opt.nowFunc()) {
-			err = store.Destroy(c.Request().Context(), sess.ID())
-		} else if sess.HasChanged() {
+		if sess.HasChanged() {
 			err = store.Save(c.Request().Context(), sess)
 		} else {
 			err = store.Touch(c.Request().Context(), sess.ID())
