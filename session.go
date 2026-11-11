@@ -33,6 +33,28 @@ type Session interface {
 	// Flush wipes out all existing data in the session, except the deadline set
 	// by SetDeadline.
 	Flush()
+	// SetDeadline sets an absolute deadline for the session, e.g., when the user
+	// is authenticated. Unlike the idle lifetime of the session store, the
+	// deadline is not extended by any later request, and Flush keeps it. A zero
+	// time removes the deadline.
+	//
+	// When a request starts at or after the deadline, the session.Sessioner
+	// middleware destroys the session and starts a new one with a new ID, no
+	// matter whether the client still sends the old ID. When the deadline passes
+	// during a request, the middleware destroys the session at the end of the
+	// request instead of saving it, and the next request with the old ID gets an
+	// empty session under that ID.
+	//
+	// The deadline is stored with the session data, so it is enforced across
+	// restarts and multiple instances when using a persistent session store. It
+	// does not prevent the session from expiring earlier because of the idle
+	// lifetime of the session store or the expiry of the cookie.
+	SetDeadline(t time.Time)
+	// Deadline returns the absolute deadline of the session set by SetDeadline,
+	// and ok is false when no deadline is set or it cannot be read. The
+	// session.Sessioner middleware treats a deadline that cannot be read as
+	// passed.
+	Deadline() (deadline time.Time, ok bool)
 	// Encode encodes session data to binary.
 	Encode() ([]byte, error)
 	// HasChanged returns whether the session has changed.
@@ -86,49 +108,6 @@ type Options struct {
 	nowFunc func() time.Time // For tests only
 }
 
-const deadlineKey = "flamego::session::deadline"
-
-// SetDeadline sets an absolute deadline for the session, e.g., when the user is
-// authenticated. Unlike the idle lifetime of the session store, the deadline is
-// not extended by any later request, and Flush keeps it. A zero time removes
-// the deadline.
-//
-// When a request starts at or after the deadline, the session.Sessioner
-// middleware destroys the session and starts a new one with a new ID, no matter
-// whether the client still sends the old ID. When the deadline passes during a
-// request, the middleware destroys the session at the end of the request
-// instead of saving it, and the next request with the old ID gets an empty
-// session under that ID.
-//
-// The deadline is stored with the session data, so it is enforced across
-// restarts and multiple instances when using a persistent session store. It
-// does not prevent the session from expiring earlier because of the idle
-// lifetime of the session store or the expiry of the cookie.
-func SetDeadline(s Session, t time.Time) {
-	if t.IsZero() {
-		s.Delete(deadlineKey)
-		return
-	}
-	// A string needs no gob registration and covers years 0 to 9999. A custom
-	// Decoder may still return it as another type, which Deadline cannot read.
-	s.Set(deadlineKey, t.UTC().Format(time.RFC3339Nano))
-}
-
-// Deadline returns the absolute deadline of the session set by SetDeadline, and
-// ok is false when no deadline is set or it cannot be read. The
-// session.Sessioner middleware treats a deadline that cannot be read as passed.
-func Deadline(s Session) (deadline time.Time, ok bool) {
-	v, ok := s.Get(deadlineKey).(string)
-	if !ok {
-		return time.Time{}, false
-	}
-	deadline, err := time.Parse(time.RFC3339Nano, v)
-	if err != nil {
-		return time.Time{}, false
-	}
-	return deadline, true
-}
-
 // deadlinePassed returns true if the session has a deadline that is not after
 // now. A deadline that cannot be read counts as passed, so that a session is
 // never kept beyond its deadline because of how it was stored.
@@ -136,7 +115,7 @@ func deadlinePassed(s Session, now time.Time) bool {
 	if s.Get(deadlineKey) == nil {
 		return false
 	}
-	deadline, ok := Deadline(s)
+	deadline, ok := s.Deadline()
 	return !ok || !now.Before(deadline)
 }
 

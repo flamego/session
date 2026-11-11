@@ -231,12 +231,12 @@ func TestSessioner_Deadline(t *testing.T) {
 			},
 		))
 		show := func(s Session) string {
-			deadline, ok := Deadline(s)
+			deadline, ok := s.Deadline()
 			return fmt.Sprintf("%s %v %v %s", s.ID(), s.Get("user_id"), ok, deadline.Format(time.RFC3339Nano))
 		}
 		f.Get("/sign-in", func(s Session) string {
 			s.Set("user_id", 1)
-			SetDeadline(s, deadline)
+			s.SetDeadline(deadline)
 			return show(s)
 		})
 		f.Get("/visit", func(s Session) string {
@@ -340,8 +340,8 @@ func TestDeadline(t *testing.T) {
 		time.Date(2300, 1, 1, 0, 0, 0, 1, time.UTC),
 	} {
 		s := NewBaseSession("abc", nil, nil)
-		SetDeadline(s, want)
-		got, ok := Deadline(s)
+		s.SetDeadline(want)
+		got, ok := s.Deadline()
 		assert.True(t, ok)
 		assert.True(t, want.Equal(got), "want %v, got %v", want, got)
 	}
