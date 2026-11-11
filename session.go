@@ -88,7 +88,7 @@ type Options struct {
 
 const deadlineKey = "flamego::session::deadline"
 
-// SetDeadline sets an absolute deadline for the session, e.g. when the user is
+// SetDeadline sets an absolute deadline for the session, e.g., when the user is
 // authenticated. Unlike the idle lifetime of the session store, the deadline is
 // not extended by any later request, and Flush keeps it. Once the deadline is
 // reached, the session.Sessioner middleware destroys the session and starts a
