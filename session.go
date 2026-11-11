@@ -237,9 +237,6 @@ func Sessioner(opts ...Options) flamego.Handler {
 		c.MapTo(flash, (*Flash)(nil))
 		c.Next()
 
-		// If the deadline passed during the request, destroy the session: Save
-		// could write it back after another request destroyed it, and Touch would
-		// extend its idle lifetime.
 		if deadlinePassed(sess, opt.nowFunc()) {
 			err = store.Destroy(c.Request().Context(), sess.ID())
 		} else if sess.HasChanged() {
