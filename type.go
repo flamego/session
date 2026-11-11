@@ -126,8 +126,7 @@ func (s *BaseSession) SetDeadline(t time.Time) {
 		delete(s.data, deadlineKey)
 		return
 	}
-	// A string needs no gob registration and covers years 0 to 9999. A custom
-	// Decoder may still return it as another type, which Deadline cannot read.
+	// Covers years 0 to 9999 and needs no gob registration.
 	s.data[deadlineKey] = t.UTC().Format(time.RFC3339Nano)
 }
 

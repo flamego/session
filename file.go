@@ -102,8 +102,7 @@ func (s *fileStore) Destroy(_ context.Context, sid string) error {
 		return nil
 	}
 
-	// A session that does not exist, e.g., destroyed by a concurrent request, is
-	// already gone, the same as in other session stores.
+	// Like other stores, destroying a missing session is not an error.
 	err := os.Remove(s.filename(sid))
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil

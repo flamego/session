@@ -30,30 +30,15 @@ type Session interface {
 	SetFlash(val interface{})
 	// Delete deletes a key from the session.
 	Delete(key interface{})
-	// Flush wipes out all existing data in the session, except the deadline set
-	// by SetDeadline.
+	// Flush wipes out all existing data in the session, except the deadline.
 	Flush()
-	// SetDeadline sets an absolute deadline for the session, e.g., when the user
-	// is authenticated. Unlike the idle lifetime of the session store, the
-	// deadline is not extended by any later request, and Flush keeps it. A zero
-	// time removes the deadline.
-	//
-	// When a request starts at or after the deadline, the session.Sessioner
-	// middleware destroys the session and starts a new one with a new ID, no
-	// matter whether the client still sends the old ID. When the deadline passes
-	// during a request, the middleware destroys the session at the end of the
-	// request instead of saving it, and the next request with the old ID gets an
-	// empty session under that ID.
-	//
-	// The deadline is stored with the session data, so it is enforced across
-	// restarts and multiple instances when using a persistent session store. It
-	// does not prevent the session from expiring earlier because of the idle
-	// lifetime of the session store or the expiry of the cookie.
+	// SetDeadline sets an absolute deadline that, unlike the idle lifetime, no
+	// request extends. A zero time removes it. A request starting at or after the
+	// deadline gets a new session with a new ID, and a session whose deadline
+	// passes during a request is destroyed instead of saved.
 	SetDeadline(t time.Time)
-	// Deadline returns the absolute deadline of the session set by SetDeadline,
-	// and ok is false when no deadline is set or it cannot be read. The
-	// session.Sessioner middleware treats a deadline that cannot be read as
-	// passed.
+	// Deadline returns the deadline, and ok is false when none is set or it
+	// cannot be read. Sessioner treats an unreadable deadline as passed.
 	Deadline() (deadline time.Time, ok bool)
 	// Encode encodes session data to binary.
 	Encode() ([]byte, error)
@@ -109,8 +94,7 @@ type Options struct {
 }
 
 // deadlinePassed returns true if the session has a deadline that is not after
-// now. A deadline that cannot be read counts as passed, so that a session is
-// never kept beyond its deadline because of how it was stored.
+// now or cannot be read.
 func deadlinePassed(s Session, now time.Time) bool {
 	if s.Get(deadlineKey) == nil {
 		return false
@@ -229,7 +213,6 @@ func Sessioner(opts ...Options) flamego.Handler {
 			panic("session: load: " + err.Error())
 		}
 
-		// Replace the session with a new one when its deadline has been reached.
 		if deadlinePassed(sess, opt.nowFunc()) {
 			err = store.Destroy(c.Request().Context(), sess.ID())
 			if err == nil {
@@ -254,9 +237,7 @@ func Sessioner(opts ...Options) flamego.Handler {
 		c.MapTo(flash, (*Flash)(nil))
 		c.Next()
 
-		// Do not save or touch a session whose deadline has passed during the
-		// request, which would otherwise write it back after another request has
-		// destroyed it, or extend its idle lifetime.
+		// Saving or touching would revive or extend a session past its deadline.
 		if deadlinePassed(sess, opt.nowFunc()) {
 			err = store.Destroy(c.Request().Context(), sess.ID())
 		} else if sess.HasChanged() {
