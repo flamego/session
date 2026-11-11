@@ -90,26 +90,33 @@ const deadlineKey = "flamego::session::deadline"
 
 // SetDeadline sets an absolute deadline for the session, e.g., when the user is
 // authenticated. Unlike the idle lifetime of the session store, the deadline is
-// not extended by any later request, and Flush keeps it. Once the deadline is
-// reached, the session.Sessioner middleware destroys the session and starts a
-// new one with a new ID, no matter whether the client still sends the old ID. A
-// zero time removes the deadline.
+// not extended by any later request, and Flush keeps it. A zero time removes
+// the deadline.
+//
+// When a request starts at or after the deadline, the session.Sessioner
+// middleware destroys the session and starts a new one with a new ID, no matter
+// whether the client still sends the old ID. When the deadline passes during a
+// request, the middleware destroys the session at the end of the request
+// instead of saving it, and the next request with the old ID gets an empty
+// session under that ID.
 //
 // The deadline is stored with the session data, so it is enforced across
-// restarts and multiple instances when using a persistent session store. It does
-// not prevent the session from expiring earlier because of the idle lifetime of
-// the session store or the expiry of the cookie.
+// restarts and multiple instances when using a persistent session store. It
+// does not prevent the session from expiring earlier because of the idle
+// lifetime of the session store or the expiry of the cookie.
 func SetDeadline(s Session, t time.Time) {
 	if t.IsZero() {
 		s.Delete(deadlineKey)
 		return
 	}
-	// A string survives any Encoder and Decoder, and covers years 0 to 9999.
+	// A string needs no gob registration and covers years 0 to 9999. A custom
+	// Decoder may still return it as another type, which Deadline cannot read.
 	s.Set(deadlineKey, t.UTC().Format(time.RFC3339Nano))
 }
 
 // Deadline returns the absolute deadline of the session set by SetDeadline, and
-// ok is false when no deadline is set.
+// ok is false when no deadline is set or it cannot be read. The
+// session.Sessioner middleware treats a deadline that cannot be read as passed.
 func Deadline(s Session) (deadline time.Time, ok bool) {
 	v, ok := s.Get(deadlineKey).(string)
 	if !ok {
