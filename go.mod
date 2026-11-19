@@ -3,7 +3,7 @@ module github.com/flamego/session
 go 1.26.0
 
 require (
-	github.com/flamego/flamego v1.12.0
+	github.com/flamego/flamego v1.14.0
 	github.com/go-sql-driver/mysql v1.10.1
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/pkg/errors v0.9.1
